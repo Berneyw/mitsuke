@@ -12,7 +12,7 @@ Page {
     function action() {
         const verb = st.hasOffline ? "Update" : "Download"
         dp.Window.window.ask(verb + " the offline dictionary?",
-            "Mitsuke downloads the ready-made dictionary (about 30 MB, 110 MB installed), checks it and installs it. "
+            "Mitsuke downloads the ready-made dictionary (about 55 MB, 180 MB installed), checks it and installs it. "
             + "It takes about a minute and runs in the background.",
             [{ label: verb, value: "go" }, { label: "Cancel", value: "no" }],
             (v) => { if (v === "go") App.startDictionary(false) })

@@ -220,7 +220,7 @@ class App:
                 "Download the offline dictionary?",
                 "Right now words are looked up online — without gender, and a little slower.\n\n"
                 "The offline dictionary adds gender, plural, inflections, examples and German definitions, and "
-                "works instantly without internet. It's a download of about 30 MB (110 MB installed).",
+                "works instantly without internet. It's a download of about 55 MB (about 180 MB installed).",
                 [("Download", "yes"), ("Later", "no")])
             self.cfg.set("dict_offered", True)
             if ans != "yes":

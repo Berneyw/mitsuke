@@ -15,7 +15,7 @@ German definitions and examples — without leaving the game.
   across lines.
 - **Highlights what it read**: the word under the cursor and the words linked to it, such as the particle of a
   separable verb.
-- **Offline dictionary** built from English and German Wiktionary (about 94 000 entries, 790 000 word forms), with
+- **Offline dictionary** built from English and German Wiktionary (about 200 000 entries, 1.2 million word forms), with
   online lookup as a fallback. Compounds that aren't in it (*Abschlussball*, *Live-Modus*) are explained from their
   parts, with gender and plural taken from the last part.
 - **Pin a card** with a double-tap of the key to scroll it, move it and save the word.
@@ -42,7 +42,7 @@ German definitions and examples — without leaving the game.
 1. Download the latest `Mitsuke-*-win64.zip` from [Releases](../../releases), unzip it anywhere and run
    `Mitsuke.exe`. It lives in the tray.
 2. On first start Mitsuke offers to install Windows' German text recognition (a few MB) and to download the
-   offline dictionary (about 30 MB; it's rebuilt from Wiktionary every month).
+   offline dictionary (about 55 MB; it's rebuilt from Wiktionary every month).
 3. In the game, use **borderless windowed** mode, hold **Shift** (or Ctrl / Alt — see Settings) and point at a
    word.
 

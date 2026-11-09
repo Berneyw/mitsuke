@@ -176,7 +176,7 @@ AUDIO_MAX = 4
 
 
 DE_GENDER = {"masculine": "m", "feminine": "f", "neuter": "n"}
-GERMAN_ONLY_POS = {"noun", "verb", "adj", "adv", "phrase", "prep_phrase", "intj", "name"}
+GERMAN_ONLY_POS = {"noun", "verb", "adj", "adv", "phrase", "prep_phrase", "intj"}   # no names: surnames crowd out words
 
 
 def german_only_entry(e, pos):
