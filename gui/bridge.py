@@ -86,6 +86,8 @@ class Bridge(QObject):
         if self.app.cfg[key] == value and key not in ("appearance",):
             return
         self.app.set_setting(key, value)
+        if key == "pron_volume":
+            self.app.gui.player.set_volume(value)
         self.settingsChanged.emit()
 
     @Slot(str, "QVariant")
@@ -96,6 +98,8 @@ class Bridge(QObject):
             return
         self.app.cfg.data[key] = value
         self._live[key] = value
+        if key == "pron_volume":
+            self.app.gui.player.set_volume(value)
         self.app.current_word = None
         self.settingsChanged.emit()
         self._save_timer.start()

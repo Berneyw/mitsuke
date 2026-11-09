@@ -22,12 +22,12 @@ def _via(text):
     return " · ".join(parts)
 
 
-def forms_line(e):
+def forms_line(e, skip_plural=False):
     """Short, useful inflection summary instead of the raw Wiktionary headline."""
     h = e.head or ""
     if e.pos == "noun":
         bits = []
-        if e.plural:
+        if e.plural and not skip_plural:
             bits.append(f"plural {e.plural}")
         if e.genitive:
             bits.append(f"genitive {e.genitive}")
@@ -80,14 +80,16 @@ def build(entries, query, source="", opts=None):
             out.append(("para", f"Found in text as “{e.match}”", "match", None))
         if e.hint:
             out.append(("para", f"Used with: {e.hint}", "match", None))
+        plural_shown = False
         if e.via and not e.match:
             if e.pos == "noun" and e.plural and "plural" in e.via:      # a plural form: say so, with its article
                 out.append(("para", f"Plural: die {e.plural}", "match", None))
+                plural_shown = True
             else:
                 out.append(("para", f"Form: {_via(e.via)}", "meta", None))
         if len(e.parts) >= 2:
             out.append(("para", "Compound: " + " + ".join(e.parts), "meta", None))
-        fl = forms_line(e)
+        fl = forms_line(e, skip_plural=plural_shown)
         if fl:
             out.append(("para", fl, "meta", None))
         senses = e.en[:o["senses"]]

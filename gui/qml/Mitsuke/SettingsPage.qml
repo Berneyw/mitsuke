@@ -193,6 +193,11 @@ Page {
                 }
             }
             SettingRow {
+                title: "Volume"; desc: "Changes while a word is playing, so you can set it by ear."
+                keywords: "loud quiet sound audio"
+                SliderSetting { key: "pron_volume"; from: 0; to: 100; stepSize: 5; unit: "%" }
+            }
+            SettingRow {
                 title: "Show the pronunciation"; desc: "The IPA transcription next to the word, like [haʊ̯s]."
                 keywords: "ipa phonetic transcription"
                 GlassSwitch { checked: sp.s.pron_ipa !== false; onToggled: (v) => App.set("pron_ipa", v) }

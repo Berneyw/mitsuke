@@ -47,6 +47,7 @@ DEFAULTS = {
     "pron_source": "recordings",   # recordings (native speakers, Windows voice if none) | voice (Windows voice)
     "pron_ipa": True,              # show the IPA transcription next to the word
     "pron_autoplay": False,        # speak the word when the in-game card appears
+    "pron_volume": 80,             # 0..100
 }
 
 

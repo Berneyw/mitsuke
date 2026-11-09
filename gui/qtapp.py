@@ -79,6 +79,7 @@ class Gui(QObject):
         from .audio import Player, german_voice_available
         self.voice_available = german_voice_available()
         self.player = Player(app.data_dir, on_state=lambda key, playing: self.call(self.bridge.set_playing, key, playing))
+        self.player.volume = app.cfg["pron_volume"]
         self.bridge = Bridge(app)
         self.backdrop = Backdrop()
         self.grabber = Grabber()

@@ -12,6 +12,7 @@ Column {
     property bool onGlass: false
     property bool showIpa: App.settings.pron_ipa !== false
     readonly property real px: basePt * 96 / 72
+    readonly property real titleH: Math.round((px + 8) * 1.32)     // one line height for everything in the title row
     readonly property color cLabel: colors.label || Theme.label
     readonly property color cLabel3: colors.label3 || Theme.label3
     readonly property color cMatch: colors.match || Theme.match
@@ -65,19 +66,18 @@ Column {
             font.weight: it.style === "word" ? Font.Bold : Font.DemiBold
             font.letterSpacing: -0.3
             color: card.cLabel
-            height: Math.max(implicitHeight, 22)
+            height: Math.max(implicitHeight, card.titleH)
             verticalAlignment: Text.AlignVCenter
         }
     }
     Component {
         id: ipaC
         Label {
-            visible: card.showIpa
-            width: visible ? implicitWidth : 0
+            visible: card.showIpa                       // invisible items take no place in the Flow
             text: it.text
             font.pointSize: 0.75 * (card.px - 0.5)
             color: card.cLabel3
-            height: 22
+            height: card.titleH
             verticalAlignment: Text.AlignVCenter
         }
     }
@@ -85,11 +85,10 @@ Column {
         id: speakC
         Item {
             visible: card.interactive
-            width: visible ? 26 : 0
-            height: 22
+            width: 26
+            height: card.titleH
             SpeakButton {
                 anchors.verticalCenter: parent.verticalCenter
-                y: -2
                 word: it.text
                 audio: it.audio || []
                 onGlass: card.onGlass
@@ -98,20 +97,25 @@ Column {
     }
     Component {
         id: pillC
-        Rectangle {
-            readonly property bool art: it.text === "der" || it.text === "die" || it.text === "das"
-            height: Math.round(card.px + 9)
-            width: pl.implicitWidth + 14
-            radius: height / 2
-            y: 2
-            color: art ? Theme.gender[it.text] : card.cPill
-            Label {
-                id: pl
-                anchors.centerIn: parent
-                text: it.text
-                font.pointSize: 0.75 * (card.px - 1.5)
-                font.weight: parent.art ? Font.Bold : Font.Medium
-                color: parent.art ? "#ffffff" : card.cPillFg
+        Item {                                          // centred on the title line, like the word itself
+            width: pill.width
+            height: card.titleH
+            Rectangle {
+                id: pill
+                readonly property bool art: it.text === "der" || it.text === "die" || it.text === "das"
+                anchors.verticalCenter: parent.verticalCenter
+                height: Math.round(card.px + 9)
+                width: pl.implicitWidth + 14
+                radius: height / 2
+                color: art ? Theme.gender[it.text] : card.cPill
+                Label {
+                    id: pl
+                    anchors.centerIn: parent
+                    text: it.text
+                    font.pointSize: 0.75 * (card.px - 1.5)
+                    font.weight: parent.art ? Font.Bold : Font.Medium
+                    color: parent.art ? "#ffffff" : card.cPillFg
+                }
             }
         }
     }

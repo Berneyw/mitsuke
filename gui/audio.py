@@ -37,6 +37,14 @@ class Player:
         self._lock = threading.Lock()
         self._mci = ctypes.windll.winmm.mciSendStringW
         self._alias = None
+        self.volume = 80                                   # 0..100
+
+    def set_volume(self, percent):
+        """Applies at once, also to a word that is sounding right now (the slider moves live)."""
+        self.volume = max(0, min(100, int(percent)))
+        alias = self._alias
+        if alias:
+            self._mci(f"setaudio {alias} volume to {self.volume * 10}", None, 0, 0)
 
     # ------------------------------------------------------------------ public
     def play(self, key, word, recordings, source="recordings", voice_fallback=True):
@@ -109,10 +117,11 @@ class Player:
 
     def _play_file(self, path, gen):
         alias = f"mitsuke{gen}"
-        kind = "waveaudio" if path.lower().endswith(".wav") else "mpegvideo"
-        if self._mci(f'open "{path}" type {kind} alias {alias}', None, 0, 0) != 0:
+        # mpegvideo (DirectShow) plays both MP3 and WAV and, unlike waveaudio, has a volume control
+        if self._mci(f'open "{path}" type mpegvideo alias {alias}', None, 0, 0) != 0:
             raise OSError(f"cannot open {path}")
         self._alias = alias
+        self._mci(f"setaudio {alias} volume to {self.volume * 10}", None, 0, 0)
         try:
             self._mci(f"play {alias} wait", None, 0, 0)          # returns when done or when stopped
         finally:

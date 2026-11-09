@@ -328,3 +328,17 @@ def test_prebuilt_dictionary():
             pass
     finally:
         srv.shutdown()
+
+
+def test_pronunciation_data():
+    """IPA and recording names come out of Wiktionary entries; recording URLs follow Commons' layout."""
+    import build_dict
+    from gui.audio import recording_url
+    e = {"sounds": [{"ipa": "[haʊ̯s]"}, {"audio": "De-Haus.ogg"},
+                    {"audio": "De-Haus2.ogg", "tags": ["Germany", "Berlin"]}, {"audio": "De-Haus.ogg"}]}
+    ipa, audio = build_dict.parse_sounds(e)
+    assert ipa == "[haʊ̯s]" and [a["f"] for a in audio] == ["De-Haus.ogg", "De-Haus2.ogg"]
+    assert audio[1]["r"] == "Germany, Berlin"
+    # the same address Wiktionary itself links to for the MP3 rendition
+    assert recording_url("De-Haus.ogg") == \
+        "https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7e/De-Haus.ogg/De-Haus.ogg.mp3"
