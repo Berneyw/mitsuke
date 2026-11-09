@@ -342,3 +342,19 @@ def test_pronunciation_data():
     # the same address Wiktionary itself links to for the MP3 rendition
     assert recording_url("De-Haus.ogg") == \
         "https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7e/De-Haus.ogg/De-Haus.ogg.mp3"
+
+
+def test_german_only_words():
+    """Words only the German Wiktionary has: their own entry with gender, plural, German definition and the
+    English translation where it gives one — not a guess assembled from the parts."""
+    d = build()
+    a = d.lookup("Abschlussball")[0]
+    assert (a.word, a.gender, a.plural, a.parts) == ("Abschlussball", "m", "Abschlussbälle", [])
+    assert a.en == [] and a.de[0].startswith("Tanz- und Festveranstaltung") and a.ipa == "[ˈapʃlʊsˌbal]"
+    assert d.lookup("Abschlussbällen")[0].word == "Abschlussball"          # its forms lead to it
+    m = d.lookup("Maustasten")[0]
+    assert (m.word, m.gender) == ("Maustaste", "f") and m.en[0]["gloss"] == "mouse button"
+    assert m.ipa == "" and m.audio[0]["f"] == "De-Maustaste.ogg"          # the "[…]" placeholder is dropped
+    import render as R
+    text = R.plain_text(R.build([a], "Abschlussball", opts={"german": False}))
+    assert "Tanz- und Festveranstaltung" in text                         # shown even with German definitions off

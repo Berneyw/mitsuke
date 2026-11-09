@@ -69,6 +69,8 @@ def build(entries, query, source="", opts=None):
                 out.append(("para", f"Found in text as “{e.match}”", "match", None))
             if e.en:
                 out.append(("para", e.en[0]["gloss"], "gloss", None))
+            elif e.de:                                   # only a German definition exists
+                out.append(("para", e.de[0], "german", None))
             continue
         items = gender + [("text", e.word or query, "word")] + ipa + pos
         if e.match and "…" in e.match:
@@ -101,7 +103,11 @@ def build(entries, query, source="", opts=None):
             if o["examples"] and ex and ex.get("text") and (i == 0 or not o.get("compact_rest")):
                 out.append(("para", ex["text"] + (f" — {ex['english']}" if ex.get("english") else ""), "example",
                             "" if len(senses) > 1 else None))
-        if o["german"]:
+        if not e.en and e.de:                            # German-only word: its definition is the meaning
+            defs = e.de[:max(1, o.get("german_max", 2))]
+            for k, d in enumerate(defs, 1):
+                out.append(("para", d, "german", str(k) if len(defs) > 1 else None))
+        elif o["german"]:
             for d in e.de[:o.get("german_max", 2)]:
                 out.append(("para", d, "german", None))
     if len(entries) > o["entries"]:

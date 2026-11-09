@@ -175,6 +175,49 @@ def simplify_senses(e, max_senses=6):
 AUDIO_MAX = 4
 
 
+DE_GENDER = {"masculine": "m", "feminine": "f", "neuter": "n"}
+GERMAN_ONLY_POS = {"noun", "verb", "adj", "adv", "phrase", "prep_phrase", "intj", "name"}
+
+
+def german_only_entry(e, pos):
+    """A word only the German Wiktionary has (often a compound: Abschlussball, Maustaste): gender, number /
+    case forms, German definitions, English translations per sense, pronunciation. -> (row, forms) or None."""
+    de = []
+    for sns in e.get("senses", []):
+        if sns.get("form_of") or sns.get("alt_of") or "form-of" in (sns.get("tags") or []):
+            continue
+        g = (sns.get("glosses") or [""])[-1].strip()
+        if g and not DE_FORM_GLOSS.search(g) and g not in de:
+            de.append(g)
+    if not de:
+        return None
+    by_sense = {}
+    for t in e.get("translations", []):
+        if t.get("lang_code") == "en" and t.get("word"):
+            words = by_sense.setdefault(t.get("sense_index") or "", [])
+            if t["word"] not in words and len(words) < 4:
+                words.append(t["word"])
+    en = [{"gloss": ", ".join(ws), "tags": []} for _k, ws in sorted(by_sense.items())][:6]
+    tags = set(e.get("tags") or [])
+    gender = next((DE_GENDER[t] for t in ("masculine", "feminine", "neuter") if t in tags), "")
+    plural = genitive = ""
+    forms = []
+    for fm in e.get("forms", []):
+        f, ft = fm.get("form", ""), set(fm.get("tags", []))
+        if not f or f in ("-", "—", "…") or ft & SKIP_FORM_TAGS:
+            continue
+        if pos == "noun" and not plural and {"nominative", "plural"} <= ft:
+            plural = f
+        if pos == "noun" and not genitive and {"genitive", "singular"} <= ft:
+            genitive = f
+        forms.append((f, ", ".join(sorted(ft))))
+    ipa, audio = parse_sounds(e)
+    if "…" in ipa:
+        ipa = ""
+    return (e["word"], pos, gender, "", plural, genitive, json.dumps(en, ensure_ascii=False),
+            json.dumps(de[:5], ensure_ascii=False), ipa, json.dumps(audio, ensure_ascii=False)), forms
+
+
 def parse_sounds(e, ipa="", audio=None):
     """IPA and native-speaker recordings (Wikimedia Commons file names + region) of a Wiktionary entry.
     Only the file name is stored; the URL is derived from it (gui/audio.py)."""
@@ -262,6 +305,7 @@ def build_de(db, path, progress):
         sounds[i] = (ipa or "", json.loads(audio or "[]"))
     acc = {}
     more_sound = {}
+    added = {}
     for e in iter_jsonl(path, progress, "Читаю немецкий Wiktionary"):
         if e.get("lang_code", "de") != "de":
             continue
@@ -270,9 +314,24 @@ def build_de(db, path, progress):
             continue                                     # статья-словоформа, а не само слово
         pos = POS_DE.get(raw_pos.lower(), raw_pos)
         eid = idx.get((e["word"], pos))
-        if not eid:
+        if not eid:                                      # only the German Wiktionary has this word: add it
+            if pos in GERMAN_ONLY_POS and e.get("word") and (e["word"], pos) not in added:
+                made = german_only_entry(e, pos)
+                if made:
+                    row, forms = made
+                    cur.execute("INSERT INTO entries(word,pos,gender,head,plural,genitive,en,de,ipa,audio) "
+                                "VALUES(?,?,?,?,?,?,?,?,?,?)", row)
+                    new_id = cur.lastrowid
+                    added[(e["word"], pos)] = new_id
+                    seen = {e["word"].lower()}
+                    cur.execute("INSERT INTO forms VALUES(?,?,?,?)", (e["word"].lower(), e["word"], new_id, ""))
+                    for f, ft in forms:
+                        if f.lower() in seen or (" " in f and not separable_form(e["word"], f)):
+                            continue
+                        seen.add(f.lower())
+                        cur.execute("INSERT INTO forms VALUES(?,?,?,?)", (f.lower(), f, new_id, ft))
             continue
-        if e.get("sounds"):                              # the German edition often has more recordings
+        if e.get("sounds") and eid:                              # the German edition often has more recordings
             ipa0, audio0 = more_sound.get(eid, sounds[eid])
             more_sound[eid] = parse_sounds(e, ipa0, audio0)
         gl = acc.setdefault(eid, [])
@@ -288,6 +347,8 @@ def build_de(db, path, progress):
                     [(json.dumps(g, ensure_ascii=False), i) for i, g in acc.items() if g])
     cur.executemany("UPDATE entries SET ipa=?, audio=? WHERE id=?",
                     [(ipa, json.dumps(a, ensure_ascii=False), i) for i, (ipa, a) in more_sound.items()])
+    if progress:
+        progress(f"German-only words: {len(added)}", None)
 
 
 def build_database(out, en_path, de_path=None, progress=None):

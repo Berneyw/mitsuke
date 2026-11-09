@@ -43,7 +43,7 @@ class WordStore:
 
     def add_entry(self, e, context="", source="game"):
         import render
-        gloss = "; ".join(s["gloss"] for s in e.en[:2]) if e.en else ""
+        gloss = "; ".join(s["gloss"] for s in e.en[:2]) if e.en else (e.de[0] if e.de else "")
         return self.add(e.word, e.pos or "", (e.gender.split()[0] if e.gender else ""), gloss,
                         render.forms_line(e), context.strip(), source)
 
