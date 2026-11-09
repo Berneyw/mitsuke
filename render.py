@@ -12,7 +12,7 @@ POS_NAMES = {
 }
 KEEP_TAGS = {"transitive", "intransitive", "reflexive", "colloquial", "informal", "formal", "figuratively",
              "archaic", "dated", "regional", "slang", "vulgar", "rare", "impersonal", "plural-only", "uncountable"}
-DEFAULTS = {"entries": 6, "senses": 5, "examples": True, "german": True}
+DEFAULTS = {"entries": 6, "senses": 5, "examples": True, "german": True, "ipa": True}
 
 
 def _via(text):
@@ -51,7 +51,8 @@ def forms_line(e):
 
 def build(entries, query, source="", opts=None):
     """-> list of lines: ('title', items) | ('para', text, style, prefix) | ('sep',)
-    items: ('text', s, style) | ('pill', s, fill, fg)   (fill 'neutral' = theme pill colors)"""
+    items: ('text', s, style) | ('pill', s, fill, fg) (fill 'neutral' = theme pill colors) | ('ipa', s)
+           | ('speak', word, recordings) — the pronunciation button"""
     o = dict(DEFAULTS, **(opts or {}))
     out = []
     for i, e in enumerate(entries[:o["entries"]]):
@@ -60,17 +61,19 @@ def build(entries, query, source="", opts=None):
         g = e.gender.split()[0] if e.gender else ""
         gender = [("pill", GENDER[g][1], GENDER[g][0], "#ffffff")] if g in GENDER else []
         pos = [("pill", POS_NAMES.get(e.pos, e.pos), "neutral", None)] if e.pos else []
+        speak = [("speak", e.word or query, list(getattr(e, "audio", []) or []))]
+        ipa = [("ipa", e.ipa)] if o.get("ipa") and getattr(e, "ipa", "") else []
         if i and o.get("compact_rest"):              # secondary results: one line of meaning
-            out.append(("title", gender + [("text", e.word or query, "word2")] + pos))
+            out.append(("title", gender + [("text", e.word or query, "word2")] + pos + speak))
             if e.match:
                 out.append(("para", f"Found in text as “{e.match}”", "match", None))
             if e.en:
                 out.append(("para", e.en[0]["gloss"], "gloss", None))
             continue
-        items = gender + [("text", e.word or query, "word")] + pos
+        items = gender + [("text", e.word or query, "word")] + ipa + pos
         if e.match and "…" in e.match:
             items.append(("pill", "separable", "neutral", None))
-        out.append(("title", items))
+        out.append(("title", items + speak))
         if e.corrected:
             out.append(("para", f"Text read as “{e.corrected}” — corrected", "meta", None))
         if e.match:
@@ -78,7 +81,10 @@ def build(entries, query, source="", opts=None):
         if e.hint:
             out.append(("para", f"Used with: {e.hint}", "match", None))
         if e.via and not e.match:
-            out.append(("para", f"Form: {_via(e.via)}", "meta", None))
+            if e.pos == "noun" and e.plural and "plural" in e.via:      # a plural form: say so, with its article
+                out.append(("para", f"Plural: die {e.plural}", "match", None))
+            else:
+                out.append(("para", f"Form: {_via(e.via)}", "meta", None))
         if len(e.parts) >= 2:
             out.append(("para", "Compound: " + " + ".join(e.parts), "meta", None))
         fl = forms_line(e)
@@ -112,7 +118,7 @@ def plain_text(lines):
         if ln[0] == "sep":
             out.append("")
         elif ln[0] == "title":
-            out.append(" ".join(it[1] for it in ln[1]))
+            out.append(" ".join(it[1] for it in ln[1] if it[0] != "speak"))
         else:
             out.append((f"{ln[3]}. " if ln[3] else "") + ln[1])
     return "\n".join(out)
@@ -129,6 +135,10 @@ def to_qml(lines):
             for it in ln[1]:
                 if it[0] == "text":
                     items.append({"kind": "text", "text": it[1], "style": it[2]})
+                elif it[0] == "ipa":
+                    items.append({"kind": "ipa", "text": it[1]})
+                elif it[0] == "speak":
+                    items.append({"kind": "speak", "text": it[1], "audio": it[2]})
                 else:
                     items.append({"kind": "pill", "text": it[1], "fill": it[2], "fg": it[3] or ""})
             out.append({"kind": "title", "items": items})

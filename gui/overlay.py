@@ -270,6 +270,9 @@ class CardOverlay(_LiveGlass):
             for v in variants:
                 v.append(("para", f"Double-tap {key} to pin this card", "meta", None))
         self._present(variants, x, y, avoid)
+        if c["pron_autoplay"]:                        # the card is shown only when the word changes
+            e = entries[0]
+            self.gui.speak(e.word or query, e.word or query, list(getattr(e, "audio", []) or []))
 
     def _present(self, variants, x, y, avoid=None):
         """x, y, avoid: physical pixels (from OCR). The card goes below (or above) the whole text block being

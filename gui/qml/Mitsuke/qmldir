@@ -30,6 +30,7 @@ SettingsGroup 1.0 SettingsGroup.qml
 SettingsPage 1.0 SettingsPage.qml
 Sidebar 1.0 Sidebar.qml
 SliderSetting 1.0 SliderSetting.qml
+SpeakButton 1.0 SpeakButton.qml
 TextBox 1.0 TextBox.qml
 ToolTipLite 1.0 ToolTipLite.qml
 TrayMenu 1.0 TrayMenu.qml

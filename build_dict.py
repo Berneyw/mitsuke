@@ -111,7 +111,8 @@ def init_db(path):
     db.executescript("PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF; PRAGMA cache_size=-262144;")
     db.executescript("""
     CREATE TABLE entries(id INTEGER PRIMARY KEY, word TEXT, pos TEXT, gender TEXT, head TEXT,
-                         plural TEXT, genitive TEXT, en TEXT, de TEXT, freq INTEGER DEFAULT 0);
+                         plural TEXT, genitive TEXT, en TEXT, de TEXT, freq INTEGER DEFAULT 0,
+                         ipa TEXT DEFAULT '', audio TEXT DEFAULT '[]');
     CREATE TABLE forms(lower TEXT, surface TEXT, entry_id INTEGER, tags TEXT);
     CREATE TABLE formof(lower TEXT, surface TEXT, lemma TEXT, pos TEXT, tags TEXT);
     """)
@@ -171,6 +172,25 @@ def simplify_senses(e, max_senses=6):
     return out
 
 
+AUDIO_MAX = 4
+
+
+def parse_sounds(e, ipa="", audio=None):
+    """IPA and native-speaker recordings (Wikimedia Commons file names + region) of a Wiktionary entry.
+    Only the file name is stored; the URL is derived from it (gui/audio.py)."""
+    audio = list(audio or [])
+    names = {a["f"] for a in audio}
+    for snd in e.get("sounds", []):
+        if not ipa and snd.get("ipa"):
+            ipa = snd["ipa"]
+        name = snd.get("audio")
+        if name and name not in names and len(audio) < AUDIO_MAX and name.lower().endswith((".ogg", ".wav", ".mp3", ".flac", ".opus")):
+            tags = [t for t in snd.get("tags", []) if t[:1].isupper()]      # Germany, Austria, Berlin …
+            audio.append({"f": name, "r": ", ".join(tags[:2])})
+            names.add(name)
+    return ipa, audio
+
+
 def build_en(db, path, progress):
     cur = db.cursor()
     for e in iter_jsonl(path, progress, "Читаю английский Wiktionary"):
@@ -202,8 +222,10 @@ def build_en(db, path, progress):
         if pos == "noun" and not plural:
             m = PLURAL_RE.search(head)
             plural = m.group(1) if m else ""
-        cur.execute("INSERT INTO entries(word,pos,gender,head,plural,genitive,en,de) VALUES(?,?,?,?,?,?,?,?)",
-                    (word, pos, gender, head, plural, genitive, json.dumps(senses, ensure_ascii=False), "[]"))
+        ipa, audio = parse_sounds(e)
+        cur.execute("INSERT INTO entries(word,pos,gender,head,plural,genitive,en,de,ipa,audio) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (word, pos, gender, head, plural, genitive, json.dumps(senses, ensure_ascii=False), "[]", ipa,
+                     json.dumps(audio, ensure_ascii=False)))
         eid = cur.lastrowid
         cur.execute("INSERT INTO forms VALUES(?,?,?,?)", (word.lower(), word, eid, ""))
         seen = {word.lower()}
@@ -234,9 +256,12 @@ def resolve_formof(db):
 def build_de(db, path, progress):
     cur = db.cursor()
     idx = {}
-    for i, w, p in cur.execute("SELECT id, word, pos FROM entries"):
+    sounds = {}
+    for i, w, p, ipa, audio in cur.execute("SELECT id, word, pos, ipa, audio FROM entries").fetchall():
         idx.setdefault((w, p), i)
+        sounds[i] = (ipa or "", json.loads(audio or "[]"))
     acc = {}
+    more_sound = {}
     for e in iter_jsonl(path, progress, "Читаю немецкий Wiktionary"):
         if e.get("lang_code", "de") != "de":
             continue
@@ -247,6 +272,9 @@ def build_de(db, path, progress):
         eid = idx.get((e["word"], pos))
         if not eid:
             continue
+        if e.get("sounds"):                              # the German edition often has more recordings
+            ipa0, audio0 = more_sound.get(eid, sounds[eid])
+            more_sound[eid] = parse_sounds(e, ipa0, audio0)
         gl = acc.setdefault(eid, [])
         for s in e.get("senses", []):
             if s.get("form_of") or s.get("alt_of") or "form-of" in (s.get("tags") or []):
@@ -258,6 +286,8 @@ def build_de(db, path, progress):
                 gl.append(g)
     cur.executemany("UPDATE entries SET de=? WHERE id=?",
                     [(json.dumps(g, ensure_ascii=False), i) for i, g in acc.items() if g])
+    cur.executemany("UPDATE entries SET ipa=?, audio=? WHERE id=?",
+                    [(ipa, json.dumps(a, ensure_ascii=False), i) for i, (ipa, a) in more_sound.items()])
 
 
 def build_database(out, en_path, de_path=None, progress=None):

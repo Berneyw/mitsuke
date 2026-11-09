@@ -43,6 +43,10 @@ DEFAULTS = {
     "reduce_transparency": False,
     "increase_contrast": False,
     "reduce_motion": False,
+    # pronunciation
+    "pron_source": "recordings",   # recordings (native speakers, Windows voice if none) | voice (Windows voice)
+    "pron_ipa": True,              # show the IPA transcription next to the word
+    "pron_autoplay": False,        # speak the word when the in-game card appears
 }
 
 

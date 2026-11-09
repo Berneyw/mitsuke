@@ -76,6 +76,9 @@ class Gui(QObject):
         self.qapp.setFont(f)
         self._invoke.connect(self._run, Qt.ConnectionType.QueuedConnection)
 
+        from .audio import Player, german_voice_available
+        self.voice_available = german_voice_available()
+        self.player = Player(app.data_dir, on_state=lambda key, playing: self.call(self.bridge.set_playing, key, playing))
         self.bridge = Bridge(app)
         self.backdrop = Backdrop()
         self.grabber = Grabber()
@@ -241,6 +244,11 @@ class Gui(QObject):
         self.apply_material()
         self.bridge.refresh()
 
+    # ------------------------------------------------------------------ pronunciation
+    def speak(self, key, word, audio):
+        src = self.app.cfg["pron_source"]
+        self.player.play(key, word, audio, source=src, voice_fallback=self.voice_available)
+
     # ------------------------------------------------------------------ overlays
     def pin(self, entries, word, src, context, x, y):
         self.card.hide()
@@ -254,6 +262,7 @@ class Gui(QObject):
         return self.qapp.exec()
 
     def quit(self):
+        self.player.stop()
         self.card.stop_capture()
         if self.pinned:
             self.pinned.close()

@@ -129,6 +129,7 @@ Window {
                 lines: pw.lines
                 basePt: App.settings.font_size || 11
                 colors: card.card.colors
+                onGlass: card.dark
             }
         }
     }

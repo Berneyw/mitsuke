@@ -29,6 +29,8 @@ class Entry:
     match: str = ""           # что найдено в тексте, если это не одно слово: "räumt … auf", "auf jeden Fall"
     hint: str = ""            # подсказка по управлению: "warten auf …"
     corrected: str = ""       # what OCR actually read when the word had to be corrected ("raume" -> räume)
+    ipa: str = ""             # pronunciation, e.g. "[haʊ̯s]"
+    audio: list = field(default_factory=list)  # native-speaker recordings: [{"f": "De-Haus.ogg", "r": "Austria"}]
 
     @property
     def article(self):
@@ -145,6 +147,13 @@ class Dictionary:
                   plural=r["plural"] or "", genitive=r["genitive"] or "",
                   en=json.loads(r["en"] or "[]"), de=json.loads(r["de"] or "[]"))
         e.via = via_override if via_override is not None else (r["via"] or "")
+        keys = r.keys()
+        if "ipa" in keys:                             # dictionaries built before 2.2 have no pronunciation data
+            e.ipa = r["ipa"] or ""
+            try:
+                e.audio = json.loads(r["audio"] or "[]")
+            except ValueError:
+                e.audio = []
         return e
 
     def lookup(self, token: str, max_entries: int = 6):

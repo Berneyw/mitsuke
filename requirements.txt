@@ -10,4 +10,5 @@ winrt-Windows.Foundation.Collections
 winrt-Windows.Globalization
 winrt-Windows.Graphics.Imaging
 winrt-Windows.Media.Ocr
+winrt-Windows.Media.SpeechSynthesis   # Windows German voice for pronunciation
 winrt-Windows.Storage.Streams

@@ -8,6 +8,9 @@ Column {
     property var lines: []
     property real basePt: 11
     property var colors: ({})
+    property bool interactive: true                   // the hover card in the game can't be clicked
+    property bool onGlass: false
+    property bool showIpa: App.settings.pron_ipa !== false
     readonly property real px: basePt * 96 / 72
     readonly property color cLabel: colors.label || Theme.label
     readonly property color cLabel3: colors.label3 || Theme.label3
@@ -47,7 +50,8 @@ Column {
                 model: d.items
                 delegate: Loader {
                     property var it: modelData
-                    sourceComponent: it.kind === "text" ? wordC : pillC
+                    sourceComponent: it.kind === "text" ? wordC : it.kind === "ipa" ? ipaC
+                                   : it.kind === "speak" ? speakC : pillC
                 }
             }
         }
@@ -63,6 +67,33 @@ Column {
             color: card.cLabel
             height: Math.max(implicitHeight, 22)
             verticalAlignment: Text.AlignVCenter
+        }
+    }
+    Component {
+        id: ipaC
+        Label {
+            visible: card.showIpa
+            width: visible ? implicitWidth : 0
+            text: it.text
+            font.pointSize: 0.75 * (card.px - 0.5)
+            color: card.cLabel3
+            height: 22
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+    Component {
+        id: speakC
+        Item {
+            visible: card.interactive
+            width: visible ? 26 : 0
+            height: 22
+            SpeakButton {
+                anchors.verticalCenter: parent.verticalCenter
+                y: -2
+                word: it.text
+                audio: it.audio || []
+                onGlass: card.onGlass
+            }
         }
     }
     Component {

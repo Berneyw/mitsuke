@@ -179,6 +179,45 @@ Page {
         }
 
         SettingsGroup {
+            id: gPron
+            title: "Pronunciation"; icon: "speaker"; iconColor: "#ff375f"; query: sp.query
+            subtitle: "Listen to words with the speaker button on the cards."
+            SettingRow {
+                title: "Voice"; keywords: "audio sound recording speech tts"
+                PopupButton {
+                    minWidth: 170
+                    options: [{ label: "Native speakers", value: "recordings", desc: "Recordings from Wiktionary; the Windows voice when there's none." },
+                              { label: "Windows voice", value: "voice", desc: "Always the German voice built into Windows." }]
+                    value: sp.s.pron_source
+                    onSelected: (v) => App.set("pron_source", v)
+                }
+            }
+            SettingRow {
+                title: "Show the pronunciation"; desc: "The IPA transcription next to the word, like [haʊ̯s]."
+                keywords: "ipa phonetic transcription"
+                GlassSwitch { checked: sp.s.pron_ipa !== false; onToggled: (v) => App.set("pron_ipa", v) }
+            }
+            SettingRow {
+                title: "Speak words in the game"; desc: "Says the word aloud when its card appears."
+                keywords: "autoplay audio automatic"
+                GlassSwitch { checked: !!sp.s.pron_autoplay; onToggled: (v) => App.set("pron_autoplay", v) }
+            }
+            SettingRow {
+                title: "Try it"; desc: App.state.voiceAvailable ? "“Abschlussball” — no recording exists, so the Windows voice reads it."
+                                                               : "No German Windows voice is installed: only recordings play."
+                keywords: "test listen"
+                Row {
+                    spacing: 8
+                    SpeakButton { word: "Haus"; audio: [{ f: "De-Haus.ogg", r: "" }] }
+                    Label { text: "Haus"; textStyle: "body"; anchors.verticalCenter: parent.verticalCenter }
+                    Item { width: 8; height: 1 }
+                    SpeakButton { word: "Abschlussball"; audio: [] }
+                    Label { text: "Abschlussball"; textStyle: "body"; anchors.verticalCenter: parent.verticalCenter }
+                }
+            }
+        }
+
+        SettingsGroup {
             id: gGlass
             title: "Liquid Glass"; icon: "drop"; iconColor: "#32ade6"; query: sp.query
             subtitle: "The translucent material of the in-game card."
@@ -301,7 +340,7 @@ Page {
         }
 
         Label {
-            visible: sp.query !== "" && gGeneral.shown + gScan.shown + gCard.shown + gGlass.shown + gAcc.shown + gUpd.shown + gData.shown === 0
+            visible: sp.query !== "" && gGeneral.shown + gScan.shown + gCard.shown + gPron.shown + gGlass.shown + gAcc.shown + gUpd.shown + gData.shown === 0
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
             topPadding: 40

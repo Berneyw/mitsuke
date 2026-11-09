@@ -24,6 +24,16 @@ class Engine:
     def has_offline(self):
         return self.dict is not None
 
+    @property
+    def has_pronunciation(self):
+        """Dictionaries built before 2.2 have no IPA / recordings columns."""
+        if self.dict is None:
+            return False
+        try:
+            return any(r[1] == "audio" for r in self.dict.db.execute("PRAGMA table_info(entries)"))
+        except Exception:  # noqa
+            return False
+
     def stats(self):
         return self._stats
 

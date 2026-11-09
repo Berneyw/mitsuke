@@ -11,6 +11,7 @@ Item {
     property Item backdropItem: null
     property real minTint: 0
     property bool pinned: false
+    property bool interactive: false
     property real pad: 16
     property real topPad: pad
     property alias card: wc
@@ -63,6 +64,8 @@ Item {
             width: parent.width - 2 * gcard.pad
             lines: gcard.lines
             basePt: gcard.s.font_size || 11
+            interactive: gcard.interactive
+            onGlass: gcard.dark
             colors: gcard.dark
                      ? { label: "#ffffff", label3: "#d1d1d6", match: "#9ccaff", german: "#d9cfff", separator: Qt.rgba(1, 1, 1, 0.22),
                          pill: Qt.rgba(1, 1, 1, 0.18), pillFg: "#ffffff" }

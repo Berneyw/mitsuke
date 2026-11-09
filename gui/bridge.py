@@ -32,6 +32,7 @@ class Bridge(QObject):
     pageRequested = Signal(str)
     lookupRequested = Signal(str)
     flash = Signal(str)
+    playingChanged = Signal()
 
     def __init__(self, app):
         super().__init__()
@@ -42,6 +43,7 @@ class Bridge(QObject):
         self._pending_remember = None
         self._live = {}
         self._dark = True
+        self._playing = ""
         self._save_timer = QTimer(self, singleShot=True, interval=450, timeout=self._commit_live)
         self.refresh()
 
@@ -103,6 +105,27 @@ class Bridge(QObject):
         for k, v in live.items():
             self.app.set_setting(k, v)
 
+    # ------------------------------------------------------------------ pronunciation
+    @Property(str, notify=playingChanged)
+    def playingKey(self):
+        return self._playing
+
+    def set_playing(self, key, playing):
+        if playing:
+            self._playing = key
+        elif self._playing == key:
+            self._playing = ""
+        self.playingChanged.emit()
+
+    @Slot(str, str, "QVariant")
+    def speak(self, key, word, audio):
+        self.app.gui.speak(key, word, audio or [])
+
+    @Slot()
+    def stopSpeaking(self):
+        self.app.gui.player.stop()
+        self.set_playing(self._playing, False)
+
     # ------------------------------------------------------------------ state
     @Property("QVariantMap", notify=stateChanged)
     def state(self):
@@ -144,6 +167,7 @@ class Bridge(QObject):
             "statusKind": kind, "statusTitle": title, "statusDetail": detail, "keyName": key,
             "ocrError": bool(a.ocr_error), "ocrHelp": a.ocr_help() if a.ocr_error else "",
             "building": a.building, "hasOffline": a.engine.has_offline,
+            "hasPronunciation": a.engine.has_pronunciation,
             "dictStatus": dict_status, "dictButton": dict_btn, "dictPrimary": dict_primary,
             "dictEnabled": dict_enabled,
             "progress": {"active": p is not None, "text": p[0] if p else "", "frac": (p[1] or 0) if p else 0,
@@ -151,6 +175,7 @@ class Bridge(QObject):
             "update": update,
             "due": a.words.due_count(), "total": a.words.count(),
             "recent": list(cfg["recent"]),
+            "voiceAvailable": getattr(self.app.gui, "voice_available", True) if hasattr(self.app, "gui") else True,
         }
         self.stateChanged.emit()
         self.settingsChanged.emit()

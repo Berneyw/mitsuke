@@ -79,6 +79,19 @@ Page {
                         Label { width: parent.width; text: dp.st.dictStatus || ""; textStyle: "footnote"; color: Theme.label3; wrapMode: Text.WordWrap }
                     }
                 }
+                Row {                       // an older dictionary: offer the update that adds recordings
+                    visible: !!dp.st.hasOffline && !dp.st.hasPronunciation && !dp.prog.active
+                    width: parent.width
+                    spacing: 10
+                    Icon { name: "speaker"; size: 16; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
+                    Label {
+                        width: parent.width - 130
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Update to add pronunciations: IPA and native-speaker recordings."
+                        textStyle: "footnote"; color: Theme.label2; wrapMode: Text.WordWrap
+                    }
+                    GlassButton { text: "Update"; small: true; kind: "primary"; onClicked: dp.action(); anchors.verticalCenter: parent.verticalCenter }
+                }
                 Column {
                     visible: !!dp.prog.active
                     width: parent.width
