@@ -1,0 +1,13 @@
+# Python 3.10 – 3.14 (64-бит)
+mss>=10.2
+Pillow>=13.0
+pystray>=0.19.5
+PySide6-Essentials==6.12.0  # Qt Quick UI (Liquid Glass shaders run on the GPU)
+orjson>=3.13              # ускоряет сборку словаря (необязателен)
+winrt-runtime>=4.1        # Windows OCR (pywinrt 4)
+winrt-Windows.Foundation
+winrt-Windows.Foundation.Collections
+winrt-Windows.Globalization
+winrt-Windows.Graphics.Imaging
+winrt-Windows.Media.Ocr
+winrt-Windows.Storage.Streams

@@ -1,0 +1,24 @@
+# builds
+build/
+dist/
+*.zip
+*.zip.sha256
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# runtime data (lives in %APPDATA%\Mitsuke, never in the repo)
+*.sqlite
+*.sqlite.*
+*.log
+kaikki-*.jsonl
+*.shot-bak
+
+# editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

@@ -1,0 +1,37 @@
+module Mitsuke
+singleton Theme 1.0 Theme.qml
+singleton Icons 1.0 Icons.qml
+AlertContent 1.0 AlertContent.qml
+AlertPopup 1.0 AlertPopup.qml
+AlertWindow 1.0 AlertWindow.qml
+AppIcon 1.0 AppIcon.qml
+CaptionButtons 1.0 CaptionButtons.qml
+CardPreview 1.0 CardPreview.qml
+CardWindow 1.0 CardWindow.qml
+DictionaryPage 1.0 DictionaryPage.qml
+GameCard 1.0 GameCard.qml
+Glass 1.0 Glass.qml
+GlassButton 1.0 GlassButton.qml
+GlassMenu 1.0 GlassMenu.qml
+GlassSegmented 1.0 GlassSegmented.qml
+GlassSlider 1.0 GlassSlider.qml
+GlassSwitch 1.0 GlassSwitch.qml
+HighlightWindow 1.0 HighlightWindow.qml
+Icon 1.0 Icon.qml
+Label 1.0 Label.qml
+LookupPage 1.0 LookupPage.qml
+Main 1.0 Main.qml
+Page 1.0 Page.qml
+PinnedWindow 1.0 PinnedWindow.qml
+PopupButton 1.0 PopupButton.qml
+Scroller 1.0 Scroller.qml
+SettingRow 1.0 SettingRow.qml
+SettingsGroup 1.0 SettingsGroup.qml
+SettingsPage 1.0 SettingsPage.qml
+Sidebar 1.0 Sidebar.qml
+SliderSetting 1.0 SliderSetting.qml
+TextBox 1.0 TextBox.qml
+ToolTipLite 1.0 ToolTipLite.qml
+TrayMenu 1.0 TrayMenu.qml
+WordCard 1.0 WordCard.qml
+WordsPage 1.0 WordsPage.qml

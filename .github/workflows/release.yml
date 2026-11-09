@@ -1,0 +1,32 @@
+name: release
+# Push a tag like v2.1 -> builds Mitsuke, publishes a GitHub Release with the zip and its SHA-256.
+# Installed copies of Mitsuke find it through Settings → Updates.
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - name: Stamp version from the tag
+        shell: bash
+        run: sed -i "s/^VERSION = .*/VERSION = \"${GITHUB_REF_NAME#v}\"/" main.py
+      - run: pip install -r requirements.txt "pyinstaller>=6.22"
+      - run: python -m PyInstaller --noconfirm --clean Mitsuke.spec
+      - name: Zip and checksum
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart("v")
+          $zip = "Mitsuke-$v-win64.zip"
+          Compress-Archive -Path dist/Mitsuke -DestinationPath $zip
+          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() | Out-File -Encoding ascii -NoNewline "$zip.sha256"
+          "ZIP=$zip" >> $env:GITHUB_ENV
+      - name: Publish release
+        shell: bash
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh release create "$GITHUB_REF_NAME" "$ZIP" "$ZIP.sha256" --title "Mitsuke ${GITHUB_REF_NAME#v}" --generate-notes
