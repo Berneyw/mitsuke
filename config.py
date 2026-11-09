@@ -24,7 +24,7 @@ DEFAULTS = {
     "highlight": True,         # tint the word being read (and words linked to it)
     "highlight_area": False,   # also outline the strip that is read (debugging aid)
     "update_check": True,      # look for new versions on start (once a day)
-    "update_repo": "",         # GitHub "owner/repo" that publishes Mitsuke releases
+    "update_repo": "Berneyw/mitsuke",  # GitHub "owner/repo" that publishes Mitsuke releases
     "update_last_check": 0.0,
     # recognition
     "capture_width": 1200,     # ширина полосы захвата вокруг курсора, px
