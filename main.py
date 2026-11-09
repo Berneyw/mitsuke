@@ -210,7 +210,9 @@ class App:
         return False
 
     # ---------- dictionary ----------
-    def start_dictionary_build(self, ask=True):
+    def start_dictionary_build(self, ask=True, from_wiktionary=False):
+        """Installs the offline dictionary: normally the prebuilt one (~30 MB, see dictdl.py); with
+        from_wiktionary — or if that download fails — built here from the latest Wiktionary (4.3 GB)."""
         if self.building:
             return
         if ask:
@@ -218,51 +220,74 @@ class App:
                 "Download the offline dictionary?",
                 "Right now words are looked up online — without gender, and a little slower.\n\n"
                 "The offline dictionary adds gender, plural, inflections, examples and German definitions, and "
-                "works instantly without internet. It downloads about 4.3 GB of Wiktionary data and keeps about "
-                "110 MB. Everything runs in the background.",
+                "works instantly without internet. It's a download of about 30 MB (110 MB installed).",
                 [("Download", "yes"), ("Later", "no")])
             self.cfg.set("dict_offered", True)
             if ans != "yes":
                 return
         self.building = True
         self.refresh_window()
-        threading.Thread(target=self._build, daemon=True).start()
+        threading.Thread(target=self._build, args=(from_wiktionary,), daemon=True).start()
 
     def _progress(self, text, frac=None, sub=""):
         self.ui.call(self.gui.set_progress, text, frac, sub)
 
-    def _build(self):
-        import build_dict as bd
-        stages = {"Читаю английский Wiktionary": "Reading English Wiktionary",
-                  "Читаю немецкий Wiktionary": "Reading German Wiktionary",
-                  "Связываю словоформы": "Linking word forms", "Строю индексы": "Building indexes"}
+    def _install_prebuilt(self):
+        """True when the prebuilt dictionary was downloaded, verified and installed."""
+        import dictdl
         try:
-            def dl(name):
-                return lambda d, t: self._progress(f"Downloading {name}", d / t if t else None,
-                                                   f"{d >> 20:,} of {t >> 20:,} MB" if t else f"{d >> 20:,} MB")
-            en = bd.download(bd.EN_URL, os.path.join(self.data_dir, "kaikki-en.jsonl"), dl("English Wiktionary"))
-            de = None
-            if self.cfg["german_definitions"]:
-                de = bd.download(bd.DE_URL, os.path.join(self.data_dir, "kaikki-de.jsonl"), dl("German Wiktionary"))
-            new = os.path.join(self.data_dir, DB_NAME + ".new")
-            bd.build_database(new, en, de, lambda s, f: self._progress(stages.get(s, s), f,
-                                                                       "" if f is None else f"{f:.0%}"))
-            self._progress("Installing", 1)
-            self.engine.close()
-            os.replace(new, self.engine.db_path)
-            self.engine.reload()
-            for p in (en, de):
-                if p and os.path.exists(p):
-                    os.remove(p)
-            self.tray.notify("The offline dictionary is ready: instant lookups with gender and word forms.")
+            new, meta = dictdl.fetch(
+                self.cfg["update_repo"], self.data_dir,
+                lambda d, t: self._progress("Downloading the dictionary", d / t if t else None,
+                                            f"{d >> 20} of {t >> 20} MB" if t else f"{d >> 20} MB"))
+        except Exception as e:  # noqa — no network, no release yet, damaged download: build it here instead
+            logging.info("prebuilt dictionary unavailable: %s", e)
+            return False
+        self._progress("Installing", 1)
+        self.engine.close()
+        os.replace(new, self.engine.db_path)
+        self.engine.reload()
+        logging.info("installed prebuilt dictionary %s (%s entries)", meta.get("built"), meta.get("entries"))
+        return True
+
+    def _build(self, from_wiktionary=False):
+        try:
+            if not from_wiktionary and self._install_prebuilt():
+                self.tray.notify("The offline dictionary is ready: instant lookups with gender and word forms.")
+            else:
+                self._build_from_wiktionary()
         except Exception as e:  # noqa
             logging.exception("build")
             self.engine.reload()
-            self.tray.notify(f"Couldn’t build the dictionary ({e}). Online lookup still works.")
+            self.tray.notify(f"Couldn’t install the dictionary ({e}). Online lookup still works.")
         finally:
             self.building = False
             self._progress(None)
             self.refresh_window()
+
+    def _build_from_wiktionary(self):
+        import build_dict as bd
+        stages = {"Читаю английский Wiktionary": "Reading English Wiktionary",
+                  "Читаю немецкий Wiktionary": "Reading German Wiktionary",
+                  "Связываю словоформы": "Linking word forms", "Строю индексы": "Building indexes"}
+        def dl(name):
+            return lambda d, t: self._progress(f"Downloading {name}", d / t if t else None,
+                                               f"{d >> 20:,} of {t >> 20:,} MB" if t else f"{d >> 20:,} MB")
+        en = bd.download(bd.EN_URL, os.path.join(self.data_dir, "kaikki-en.jsonl"), dl("English Wiktionary"))
+        de = None
+        if self.cfg["german_definitions"]:
+            de = bd.download(bd.DE_URL, os.path.join(self.data_dir, "kaikki-de.jsonl"), dl("German Wiktionary"))
+        new = os.path.join(self.data_dir, DB_NAME + ".new")
+        bd.build_database(new, en, de, lambda s, f: self._progress(stages.get(s, s), f,
+                                                                   "" if f is None else f"{f:.0%}"))
+        self._progress("Installing", 1)
+        self.engine.close()
+        os.replace(new, self.engine.db_path)
+        self.engine.reload()
+        for p in (en, de):
+            if p and os.path.exists(p):
+                os.remove(p)
+        self.tray.notify("The offline dictionary is ready: instant lookups with gender and word forms.")
 
     # ---------- main loop: key -> OCR -> lookup ----------
     def worker(self):

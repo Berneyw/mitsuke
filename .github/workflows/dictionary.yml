@@ -1,0 +1,53 @@
+name: dictionary
+# Builds the offline dictionary (dict.sqlite) from the latest Wiktionary extracts on kaikki.org — exactly what
+# the app would build locally — and publishes it as the `dictionary` pre-release. The app downloads it from
+# there (~30 MB) instead of every user downloading 4.3 GB and building for 15 minutes.
+# Runs on demand and once a month, so the data stays fresh.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 3 * *"
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install "orjson>=3.10"
+      - name: Build dict.sqlite from Wiktionary (English + German)
+        run: python build_dict.py --out dict.sqlite
+      - name: Check and package
+        run: |
+          python - <<'EOF'
+          import hashlib, json, os, sqlite3, time, zipfile
+          db = sqlite3.connect("dict.sqlite")
+          entries = db.execute("SELECT count(*) FROM entries").fetchone()[0]
+          forms = db.execute("SELECT count(*) FROM forms").fetchone()[0]
+          db.close()
+          assert entries > 50000, f"suspiciously small dictionary: {entries} entries"
+          note = ("Mitsuke offline dictionary.\n\nBuilt from Wiktionary (English and German editions) via kaikki.org.\n"
+                  "Wiktionary content © Wiktionary contributors, licensed under CC BY-SA 4.0:\n"
+                  "https://creativecommons.org/licenses/by-sa/4.0/\n"
+                  "This database is a derivative work and is distributed under the same license.\n")
+          with zipfile.ZipFile("mitsuke-dictionary.zip", "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+              z.write("dict.sqlite", "dict.sqlite")
+              z.writestr("LICENSE-DICTIONARY.txt", note)
+          sha = hashlib.sha256(open("mitsuke-dictionary.zip", "rb").read()).hexdigest()
+          meta = {"format": 1, "built": time.strftime("%Y-%m-%d"), "entries": entries, "forms": forms,
+                  "size": os.path.getsize("mitsuke-dictionary.zip"), "db_size": os.path.getsize("dict.sqlite"),
+                  "sha256": sha}
+          json.dump(meta, open("mitsuke-dictionary.json", "w"), indent=2)
+          print(meta)
+          EOF
+      - name: Publish the dictionary pre-release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          if ! gh release view dictionary >/dev/null 2>&1; then
+            gh release create dictionary --prerelease --latest=false --title "Offline dictionary" \
+              --notes "Prebuilt offline dictionary for Mitsuke (Wiktionary data, CC BY-SA 4.0). The app downloads it automatically; you don't need to install it by hand."
+          fi
+          gh release upload dictionary mitsuke-dictionary.zip mitsuke-dictionary.json --clobber

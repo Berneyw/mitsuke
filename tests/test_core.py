@@ -288,3 +288,40 @@ def test_recapture_when_word_cut():
         return [Box("Küchentisch", 90, 10, 90, 14)], 100, 20, 200, 40
     o._recognize = fake
     assert o.word_at(500, 300) == "Küchentisch" and calls == [50, 100]
+
+
+def test_prebuilt_dictionary():
+    """The ready-made dictionary is downloaded, checked against its SHA-256 and rejected when damaged."""
+    import hashlib, json, sqlite3, zipfile, functools
+    import dictdl
+    tmp = tempfile.mkdtemp()
+    srv_dir = os.path.join(tmp, "srv"); os.makedirs(srv_dir)
+    db = sqlite3.connect(os.path.join(tmp, "dict.sqlite"))
+    db.executescript("CREATE TABLE entries(id INTEGER PRIMARY KEY, word TEXT); CREATE TABLE forms(lower TEXT);")
+    db.executemany("INSERT INTO entries(word) VALUES(?)", [(f"w{i}",) for i in range(dictdl.MIN_ENTRIES + 5)])
+    db.commit(); db.close()
+    zp = os.path.join(srv_dir, "mitsuke-dictionary.zip")
+    with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
+        z.write(os.path.join(tmp, "dict.sqlite"), "dict.sqlite")
+    meta = {"format": 1, "sha256": hashlib.sha256(open(zp, "rb").read()).hexdigest(), "entries": dictdl.MIN_ENTRIES + 5}
+    json.dump(meta, open(os.path.join(srv_dir, "mitsuke-dictionary.json"), "w"))
+    class Quiet(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+    handler = functools.partial(Quiet, directory=srv_dir)
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}/"
+    work = os.path.join(tmp, "work"); os.makedirs(work)
+    try:
+        new, m = dictdl.fetch("x/y", work, base=base)
+        assert os.path.exists(new) and m["entries"] == dictdl.MIN_ENTRIES + 5
+        meta["sha256"] = "0" * 64                                          # damaged download is refused
+        json.dump(meta, open(os.path.join(srv_dir, "mitsuke-dictionary.json"), "w"))
+        try:
+            dictdl.fetch("x/y", work, base=base)
+            assert False, "a checksum mismatch must be rejected"
+        except ValueError:
+            pass
+    finally:
+        srv.shutdown()

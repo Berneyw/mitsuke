@@ -12,10 +12,18 @@ Page {
     function action() {
         const verb = st.hasOffline ? "Update" : "Download"
         dp.Window.window.ask(verb + " the offline dictionary?",
-            "Mitsuke downloads Wiktionary (about 4.3 GB) and builds a compact dictionary (about 110 MB). "
-            + "This takes 5–15 minutes and runs in the background — you can keep playing.",
+            "Mitsuke downloads the ready-made dictionary (about 30 MB, 110 MB installed), checks it and installs it. "
+            + "It takes about a minute and runs in the background.",
             [{ label: verb, value: "go" }, { label: "Cancel", value: "no" }],
-            (v) => { if (v === "go") App.startDictionary() })
+            (v) => { if (v === "go") App.startDictionary(false) })
+    }
+    function buildLocally() {
+        dp.Window.window.ask("Build the dictionary from Wiktionary?",
+            "Mitsuke downloads the latest Wiktionary data (about 4.3 GB) and builds the dictionary on this computer. "
+            + "This takes 5–15 minutes. The ready-made download has the same content and is refreshed every month, "
+            + "so you only need this for the very newest entries.",
+            [{ label: "Build", value: "go" }, { label: "Cancel", value: "no" }],
+            (v) => { if (v === "go") App.startDictionary(true) })
     }
 
     actions: [
@@ -109,11 +117,16 @@ Page {
             title: "Sources"
             icon: "book"
             iconColor: "#8e8e93"
-            footer: "Dictionary data © Wiktionary contributors, CC BY-SA 4.0."
+            footer: "Dictionary data © Wiktionary contributors, CC BY-SA 4.0. The ready-made dictionary is rebuilt from Wiktionary every month."
             SettingRow {
                 title: "German definitions"
                 desc: "Definitions from the German Wiktionary. Applies after the next update."
                 GlassSwitch { checked: !!App.settings.german_definitions; onToggled: (v) => App.set("german_definitions", v) }
+            }
+            SettingRow {
+                title: "Build from Wiktionary"
+                desc: "Builds the dictionary on this computer from the newest Wiktionary data (4.3 GB download, 5–15 minutes) instead of the ready-made one."
+                GlassButton { text: "Build…"; small: true; enabled: !dp.st.building; onClicked: dp.buildLocally() }
             }
             SettingRow {
                 title: "Search online when a word is missing"

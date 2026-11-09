@@ -297,9 +297,10 @@ class Bridge(QObject):
         self.words_changed()
 
     # ------------------------------------------------------------------ actions
-    @Slot()
-    def startDictionary(self):
-        self.app.start_dictionary_build(ask=False)
+    @Slot(bool)
+    def startDictionary(self, from_wiktionary=False):
+        """Prebuilt download by default; from_wiktionary builds it here from the latest Wiktionary data."""
+        self.app.start_dictionary_build(ask=False, from_wiktionary=bool(from_wiktionary))
 
     @Slot()
     def retryOcr(self):
