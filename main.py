@@ -211,7 +211,7 @@ class App:
 
     # ---------- dictionary ----------
     def start_dictionary_build(self, ask=True, from_wiktionary=False):
-        """Installs the offline dictionary: normally the prebuilt one (~30 MB, see dictdl.py); with
+        """Installs the offline dictionary: normally the prebuilt one (~55 MB, see dictdl.py); with
         from_wiktionary — or if that download fails — built here from the latest Wiktionary (4.3 GB)."""
         if self.building:
             return

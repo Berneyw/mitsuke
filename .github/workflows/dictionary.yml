@@ -1,7 +1,7 @@
 name: dictionary
 # Builds the offline dictionary (dict.sqlite) from the latest Wiktionary extracts on kaikki.org — exactly what
 # the app would build locally — and publishes it as the `dictionary` pre-release. The app downloads it from
-# there (~30 MB) instead of every user downloading 4.3 GB and building for 15 minutes.
+# there (~55 MB) instead of every user downloading 4.3 GB and building for 15 minutes.
 # Runs on demand, once a month (fresh data) and whenever build_dict.py changes.
 on:
   workflow_dispatch:

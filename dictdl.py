@@ -1,5 +1,5 @@
 """The prebuilt offline dictionary: the same dict.sqlite the app would build from Wiktionary, built once by
-GitHub Actions (.github/workflows/dictionary.yml) and published as the `dictionary` release (~30 MB instead
+GitHub Actions (.github/workflows/dictionary.yml) and published as the `dictionary` release (~55 MB instead
 of downloading 4.3 GB and building for 15 minutes). Verified with SHA-256 before it replaces anything."""
 import hashlib
 import json
