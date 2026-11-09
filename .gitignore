@@ -22,3 +22,6 @@ kaikki-*.jsonl
 .idea/
 Thumbs.db
 desktop.ini
+
+# local real-game frames (game UI is EA content: not for the public repo)
+tests/real/

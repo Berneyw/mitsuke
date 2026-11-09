@@ -17,7 +17,10 @@ def test_lookup():
     assert (e.word, e.gender, e.plural, e.article) == ("Haus", "n", "Häuser", "das") and e.via
     assert d.lookup("ging")[0].word == "gehen"
     assert d.lookup("haus")[0].word == "Haus"
-    assert [x.word for x in d.lookup("Küchentisch")] == ["Küche", "Tisch"]
+    # an unknown compound: one entry for the whole word (gender / plural from its last part), then the parts
+    k = d.lookup("Küchentisch")
+    assert [x.word for x in k] == ["Küchentisch", "Tisch", "Küche"] and k[0].parts == ["Küche", "Tisch"]
+    assert k[0].gender == k[1].gender
     assert d.lookup("Quatsch") == []
     assert d.lookup("Haus")[0].de == ["Gebäude, das Menschen als Wohnung oder Arbeitsstätte dient"]  # без «Genitiv … Hau»
     assert len(d.lookup("Häuser")) == 1                                  # без дублей
@@ -52,7 +55,7 @@ def test_context():
     assert ents[0].word == "warten" and ents[0].en[0]["gloss"] == "to wait (for)  [+ auf + Akk.]" and ents[0].hint == "warten auf …"
     # обрывки слова от OCR склеиваются
     ents, w = ctx(d, "Der Küch entisch ist", "Küch", [False, True, False])
-    assert w == "Küchentisch" and ents[0].word == "Küche"
+    assert w == "Küchentisch" and ents[0].word == "Küchentisch"
     ents, w = ctx(d, "Der Kühl schrank ist", "schrank", [False, True, False])
     assert w == "Kühlschrank" and ents[0].word == "Kühlschrank"
     # обычный пробел между известными словами не склеивается

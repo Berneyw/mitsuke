@@ -681,9 +681,24 @@ class Dictionary:
     # --- составные слова: Küchentisch -> Küche|n + Tisch ---
     LINKERS = ("", "s", "n", "en", "er", "e", "es", "ens")
 
-    def _compound(self, tok: str):
+    def _compound(self, tok: str, depth=0):
+        """A compound that isn't in the dictionary (Abschlussball, Live-Modus): one entry for the whole word —
+        in German the last part decides its meaning, part of speech, gender and plural (der Ball → der
+        Abschlussball, die Abschlussbälle) — followed by the parts themselves."""
+        if "-" in tok.strip("-"):                          # hyphenated: Live-Modus, Bestreben-Leiste
+            pieces = [p for p in tok.split("-") if p]
+            tail = self._prefer_pos(self.lookup(pieces[-1]), pieces[-1])
+            heads = [self._prefer_pos(self.lookup(p), p)[:1] for p in pieces[:-1]]
+            if tail or any(heads):
+                return self._compound_entry(tok, "-".join(pieces[:-1]) + "-", pieces[-1], tail,
+                                            [h for hs in heads for h in hs])
+            return []
         low = tok.lower()
-        for i in range(len(low) - 3, 2, -1):             # хвост — самое длинное слово справа
+        noun = tok[:1].isupper()
+        best, best_score = None, None
+        # every split is a candidate (Maus|taste vs maust|aste): the best has a dictionary-form noun on the right,
+        # a dictionary-form word on the left and a long right part
+        for i in range(len(low) - 3, 2, -1):
             tail = low[i:]
             head = low[:i]
             tail_rows = self._by_form(tail)
@@ -697,15 +712,85 @@ class Dictionary:
                     continue
                 head_rows = self._by_form(h)
                 if head_rows:
-                    ents = self._rank(tail_rows, tail)[:3]
-                    hent = self._rank(head_rows, h)[:1]
-                    for e in ents:
-                        e.parts = [tok[:i], tok[i:]]
-                    return hent_prefix(hent, tok[:i]) + ents
+                    h_lemma = any(r["via"] == "" for r in head_rows)
+                    h_noun = any(r["pos"] == "noun" for r in head_rows)
+                elif depth == 0 and len(h) >= 6:          # three parts: Mehr|spieler|modus
+                    sub = self._compound(h.capitalize(), depth=1)
+                    if not sub:
+                        continue
+                    head_rows, h_lemma, h_noun = sub[:1], True, sub[0].pos == "noun"
+                else:
+                    continue
+                t_lemma = any(r["via"] == "" for r in tail_rows)
+                t_noun = any(r["pos"] == "noun" and r["via"] == "" for r in tail_rows)
+                score = (3 * t_noun + 2 * t_lemma + 2 * h_lemma + h_noun + len(tail) / 8 - len(link) / 4)
+                if best_score is None or score > best_score:
+                    best, best_score = (i, tail, h, tail_rows, head_rows), score
+        if best:
+            i, tail, h, tail_rows, head_rows = best
+            tail_ents = self._prefer_pos(self._rank(tail_rows, tail.capitalize() if noun else tail), tail, noun)
+            if head_rows and isinstance(head_rows[0], Entry):        # the left part is itself a compound
+                head_ents = head_rows
+            else:
+                head_ents = self._prefer_pos(self._rank(head_rows, h.capitalize()), h, True)
+            return self._compound_entry(tok, tok[:i], tok[i:], tail_ents, head_ents[:1])
         return []
 
+    @staticmethod
+    def _prefer_pos(ents, surface, noun=None):
+        """A capitalised word (or part) is a noun: drop verb / adjective readings when a noun reading exists."""
+        noun = surface[:1].isupper() if noun is None else noun
+        if noun:
+            nouns = [e for e in ents if e.pos == "noun"]
+            return nouns or ents
+        return ents
 
-def hent_prefix(hents, text):
-    for e in hents:
-        e.parts = [text]
-    return hents
+    def _compound_entry(self, tok, head_text, tail_text, tail_ents, head_ents):
+        t = tail_ents[0] if tail_ents else None
+        if tok.isupper():                                  # OCR of small caps: ABSCHLUSSBALL -> Abschlussball
+            tok = "-".join(p[:1] + p[1:].lower() for p in tok.split("-"))
+            head_text = tok[:len(head_text)]
+            tail_text = tok[len(head_text):]
+        noun = t is not None and t.pos == "noun"
+        word = tok[:1].upper() + tok[1:] if noun else tok
+        via = ""
+        # only real inflections (number, case) lead back to the dictionary form; a derived word — a diminutive
+        # (-chen), the masculine Spieler of Spielerin — stays as written
+        inflection = t is not None and bool(re.search(r"plural|singular|genitive|dative|accusative|nominative", t.via or ""))             and not re.search(r"diminutive|augmentative|agent", t.via)
+        if t and t.word.lower() != tail_text.lower() and inflection:   # Zufriedenheitspunkte -> …punkt (plural)
+            lemma_tail = t.word if head_text.endswith("-") else t.word[:1].lower() + t.word[1:]
+            word = word[:len(head_text)] + lemma_tail
+            via = t.via
+
+        def joined(form):                                  # head + the tail's form: Abschluss + Bälle
+            if not form:
+                return ""
+            if head_text.endswith("-"):
+                return head_text + form
+            return word[:len(head_text)] + form[:1].lower() + form[1:]
+        gender = t.gender if t else ""
+        derived = bool(t and t.via and not inflection)
+        if derived:                                        # Spieler (masculine of Spielerin), Bändchen (diminutive)
+            gender = "n" if re.search(r"diminutive", t.via) else "m" if "masculine" in t.via                 else "f" if "feminine" in t.via else gender
+        senses = []
+        if t:
+            same = [e for e in tail_ents if e.word == t.word and e.pos == t.pos]
+            glosses = []
+            for e in same:
+                for s in e.en[:2]:
+                    if s["gloss"] not in glosses:
+                        glosses.append(s["gloss"])
+            if glosses:
+                senses.append({"gloss": f"{t.word}: " + "; ".join(glosses[:3]), "tags": []})
+        for h in head_ents:
+            if h.en:
+                senses.append({"gloss": f"{h.word}: " + "; ".join(s["gloss"] for s in h.en[:2]), "tags": []})
+        whole = Entry(word=word, pos=t.pos if t else (head_ents[0].pos if head_ents else ""),
+                      gender=gender if noun else "", plural=joined(t.plural) if noun and not derived else "",
+                      genitive=joined(t.genitive) if noun and not derived else "", en=senses, via=via,
+                      parts=([h.word for h in head_ents] + [tail_text[:1].upper() + tail_text[1:] if derived else t.word])
+                      if t else [head_text, tail_text])
+        rest = [e for e in tail_ents[:2]] + list(head_ents)
+        for e in rest:
+            e.parts = []
+        return [whole] + rest

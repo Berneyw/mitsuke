@@ -79,8 +79,8 @@ def build(entries, query, source="", opts=None):
             out.append(("para", f"Used with: {e.hint}", "match", None))
         if e.via and not e.match:
             out.append(("para", f"Form: {_via(e.via)}", "meta", None))
-        if len(e.parts) == 2:
-            out.append(("para", f"Compound: {e.parts[0]} + {e.parts[1]}", "meta", None))
+        if len(e.parts) >= 2:
+            out.append(("para", "Compound: " + " + ".join(e.parts), "meta", None))
         fl = forms_line(e)
         if fl:
             out.append(("para", fl, "meta", None))
