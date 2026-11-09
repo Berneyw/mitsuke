@@ -2,9 +2,12 @@ name: dictionary
 # Builds the offline dictionary (dict.sqlite) from the latest Wiktionary extracts on kaikki.org — exactly what
 # the app would build locally — and publishes it as the `dictionary` pre-release. The app downloads it from
 # there (~30 MB) instead of every user downloading 4.3 GB and building for 15 minutes.
-# Runs on demand and once a month, so the data stays fresh.
+# Runs on demand, once a month (fresh data) and whenever build_dict.py changes.
 on:
   workflow_dispatch:
+  push:                          # the builder changed: the published dictionary should follow
+    branches: [main]
+    paths: ["build_dict.py", ".github/workflows/dictionary.yml"]
   schedule:
     - cron: "0 4 3 * *"
 permissions:
