@@ -1,52 +1,80 @@
 # Mitsuke
 
-Немецкий словарь-оверлей для игр и любых окон Windows. Mitsuke живёт в трее: зажмите клавишу
-(Shift, Ctrl или Alt) и наведите курсор на немецкое слово — рядом появится карточка на Liquid Glass:
-артикль (der/die/das), формы, перевод на английский, толкования на немецком, примеры. Распознаются
-фразы, глаголы с отделяемыми приставками («räume … auf» → aufräumen), глаголы с предлогами,
-составные слова и переносы между строками.
+A German dictionary that works on top of games and any other Windows app. Hold a key, point at a German word on
+screen, and a card appears next to it with the article (der / die / das), word forms, English translations,
+German definitions and examples — without leaving the game.
 
-*Mitsuke* (見つけ) — «находка», от японского *mitsukeru*, «находить».
+![Word card over a game](docs/screenshots/game-card.png)
 
-## Возможности
-- **Чтение экрана** через встроенное в Windows распознавание текста (Windows OCR), подсветка
-  слова и связанных с ним слов прямо на экране.
-- **Офлайн-словарь** из Wiktionary (английский и немецкий), онлайн-поиск, если слова нет.
-- **Закрепление карточки** двойным нажатием клавиши: прокрутка, перетаскивание, сохранение слова.
-- **My Words**: сохранённые слова, повторение по интервалам (как в Anki), экспорт для Anki.
-- **Интерфейс** на Qt Quick / QML: живое стекло на GPU-шейдерах (преломление, размытие, блики,
-  реагирующие на курсор), системный Acrylic, тёмная и светлая темы, настройки специальных
-  возможностей (меньше прозрачности, больше контраста, меньше движения).
-- **Обновления** с GitHub Releases с проверкой SHA-256.
+## Features
 
-## Запуск из исходников (Windows 10/11)
-1. Python 3.10–3.14, 64-бит.
-2. `run_dev.bat` — ставит зависимости и запускает приложение.
+- **Reads any text on screen** with Windows' built-in text recognition (OCR) — game dialogue, menus, videos,
+  anything that isn't selectable text.
+- **Understands real sentences**: phrases (*auf jeden Fall*), separable verbs split across a sentence
+  (*räume … auf* → **aufräumen**), verbs with prepositions, compound words, inflected forms and words broken
+  across lines.
+- **Highlights what it read**: the word under the cursor and the words linked to it, such as the particle of a
+  separable verb.
+- **Offline dictionary** built from English and German Wiktionary (about 94 000 entries), with online lookup as a
+  fallback.
+- **Pin a card** with a double-tap of the key to scroll it, move it and save the word.
+- **My Words**: saved words with the sentence they came from, spaced-repetition review and Anki export.
+- **Modern translucent interface** rendered on the GPU, dark and light appearance, and accessibility options
+  (reduce transparency, increase contrast, reduce motion).
+- **Updates** from GitHub Releases, verified with SHA-256.
 
-## Сборка
-`build_exe.bat` → папка `dist\Mitsuke` с `Mitsuke.exe` (переносить нужно всю папку).
-Шейдеры (`gui/qml/Mitsuke/shaders/*.qsb`) уже скомпилированы; чтобы изменить `glass.frag`,
-нужен `pyside6-qsb` из пакета PySide6-Addons:
+## Screenshots
 
-```
-pyside6-qsb --glsl "150,300es" --hlsl 50 --msl 12 -o glass.frag.qsb glass.frag
-```
-
-Выпуск версии: тег `vX.Y` → GitHub Actions собирает архив и публикует Release
-(`.github/workflows/release.yml`). Ручная сборка без выпуска — workflow `build-exe`.
-
-## Структура
-| Путь | Что там |
+| | |
 |---|---|
-| `main.py` | ядро приложения: клавиша → OCR → поиск → карточка |
-| `ocrword.py` | захват экрана и Windows OCR, контекст вокруг курсора |
-| `dictcore.py`, `engine.py`, `build_dict.py`, `online.py` | словарь: разбор слов, фразы, сборка базы из Wiktionary |
-| `render.py` | модель карточки слова (общая для окна и оверлея) |
-| `words.py` | My Words и интервальные повторения |
-| `gui/` | интерфейс: мост Python ↔ QML, оверлеи, Win32-материалы, QML-компоненты и шейдер |
-| `tests/` | юнит-тесты и стенд точности OCR на синтетических игровых кадрах |
+| ![Lookup](docs/screenshots/lookup.png) | ![My Words](docs/screenshots/my-words.png) |
+| **Lookup** — search any word or phrase | **My Words** — saved words and review |
+| ![Dictionary](docs/screenshots/dictionary.png) | ![Settings](docs/screenshots/settings.png) |
+| **Dictionary** — offline data and sources | **Settings** — scanning, card and appearance |
+| ![Pinned card](docs/screenshots/pinned-card.png) | ![Card preview](docs/screenshots/settings-card-preview.png) |
+| **Pinned card** — stays open, scrolls, saves | **Card preview** — updates live with the settings |
 
-## Данные
-Настройки, словарь, сохранённые слова и лог: `%APPDATA%\Mitsuke\`.
+<p align="center"><img src="docs/screenshots/tray-menu.png" alt="Tray menu" width="340"><br><b>Tray menu</b></p>
 
-Данные словаря © участники Wiktionary, лицензия CC BY-SA 4.0 (через kaikki.org).
+## Getting started
+
+1. Download the latest `Mitsuke-*-win64.zip` from [Releases](../../releases), unzip it anywhere and run
+   `Mitsuke.exe`. It lives in the tray.
+2. On first start Mitsuke offers to install Windows' German text recognition (a few MB) and to download the
+   offline dictionary (it builds a ~110 MB database in the background).
+3. In the game, use **borderless windowed** mode, hold **Shift** (or Ctrl / Alt — see Settings) and point at a
+   word.
+
+Requires Windows 10 or 11 (64-bit).
+
+## Building from source
+
+- Python 3.10–3.14 (64-bit).
+- `run_dev.bat` installs the requirements and starts the app.
+- `build_exe.bat` builds `dist\Mitsuke\Mitsuke.exe` (keep the whole folder together).
+- The UI is Qt Quick (PySide6). The glass shader in `gui/qml/Mitsuke/shaders` is precompiled; after editing
+  `glass.frag`, rebuild it with `pyside6-qsb` (from PySide6-Addons):
+
+  ```
+  pyside6-qsb --glsl "150,300es" --hlsl 50 --msl 12 -o glass.frag.qsb glass.frag
+  ```
+
+- Pushing a tag such as `v2.1` builds the app on GitHub Actions and publishes a release.
+
+| Path | Contents |
+|---|---|
+| `main.py` | app core: key → OCR → lookup → card |
+| `ocrword.py` | screen capture, Windows OCR, context around the cursor |
+| `dictcore.py`, `engine.py`, `build_dict.py`, `online.py` | dictionary: parsing, phrases, building the database from Wiktionary |
+| `render.py` | word card model shared by the window and the overlays |
+| `words.py` | My Words and spaced repetition |
+| `gui/` | interface: Python ↔ QML bridge, overlays, Windows materials, QML components and shader |
+| `tests/` | unit tests and an OCR accuracy bench on synthetic game frames |
+
+## Data and privacy
+
+Settings, the dictionary, saved words and the log stay on your computer in `%APPDATA%\Mitsuke`. Screen captures
+are processed locally and never saved or sent anywhere; the only network requests are online word lookups
+(en.wiktionary.org, when a word isn't in the offline dictionary), dictionary downloads and update checks.
+
+Dictionary data © Wiktionary contributors, licensed under CC BY-SA 4.0, via [kaikki.org](https://kaikki.org).

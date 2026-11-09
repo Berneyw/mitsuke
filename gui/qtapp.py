@@ -247,7 +247,7 @@ class Gui(QObject):
         self.highlight.hide()
         if self.pinned:
             self.pinned.close()
-        self.pinned = PinnedCard(self, entries, word, src, context, x, y)
+        self.pinned = PinnedCard(self, entries, word, src, context, x, y, getattr(self.card, "last_avoid", None))
 
     # ------------------------------------------------------------------ lifetime
     def exec(self):

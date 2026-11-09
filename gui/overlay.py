@@ -275,6 +275,7 @@ class CardOverlay(_LiveGlass):
         """x, y, avoid: physical pixels (from OCR). The card goes below (or above) the whole text block being
         read, so it never covers the rest of the sentence; detail drops until it fits."""
         self.hide_timer.stop()
+        self.last_avoid = avoid
         c, w = self.cfg, self.win
         s, r = screen_at(x, y)
         self.dpr, self.origin = r, (s.geometry().x(), s.geometry().y())
@@ -424,7 +425,7 @@ class PinnedCard(_LiveGlass):
     """A card that stays after the scan key is released (double-tap to pin)."""
     name = "pin"
 
-    def __init__(self, gui, entries, query, source, context, x, y):
+    def __init__(self, gui, entries, query, source, context, x, y, avoid=None):
         app = gui.app
         super().__init__(gui, gui.create_window("PinnedWindow.qml"))
         self.app, self.entries, self.query, self.source, self.context = app, entries, query, source, context
@@ -441,8 +442,13 @@ class PinnedCard(_LiveGlass):
         right, bottom = to_logical(wr - 1, wb - 1)[:2]
         width = max(340, min(720, c["card_width"]))
         w.setProperty("cardWidth", width)
-        room_below = bottom - (ly + 26) - 4
-        room_above = (ly - 14) - top - 4
+        below_y, above_y = ly + 26, ly - 14
+        if avoid:                                    # keep the rest of the paragraph readable
+            a0, a1 = to_logical(x, avoid[0])[1], to_logical(x, avoid[1])[1]
+            if a1 - ly < 300 and ly - a0 < 300:
+                below_y, above_y = max(below_y, a1 + 10), min(above_y, a0 - 10)
+        room_below = bottom - below_y - 4
+        room_above = above_y - top - 4
         below = room_below >= min(room_above, 360) or room_below >= room_above
         room = room_below if below else room_above
         m = w.property("margin") or 26
@@ -454,7 +460,7 @@ class PinnedCard(_LiveGlass):
         self._sync_saved()
         h = w.height() - 2 * m
         cx = max(left + 4, min(lx - 14, right - width - 4))
-        cy = ly + 26 if below else max(top + 4, ly - 14 - h)
+        cy = below_y if below else max(top + 4, above_y - h)
         w.setX(int(round(cx - m)))
         w.setY(int(round(cy - m)))
         w.action.connect(self._action)
