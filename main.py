@@ -12,7 +12,7 @@ import time
 from config import OLD_APP, Config, data_dir
 from engine import DB_NAME, Engine
 
-VERSION = "2.3"
+VERSION = "2.4"
 VK = {"shift": 0x10, "ctrl": 0x11, "alt": 0x12}
 BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 INSTANCE_PORT = 47653
