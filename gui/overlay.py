@@ -154,6 +154,7 @@ class _LiveGlass:
         self._pending = False
         self._thread = None
         self._alive = False
+        self._closed = False
         self._gen = 0
 
     @property
@@ -196,13 +197,17 @@ class _LiveGlass:
 
     def _apply(self, img, contrast=True):
         self._pending = False
-        if img is None or not self.glass_on():
+        if img is None or self._closed or not self.glass_on():
             return
-        self.gui.backdrop.images[self.name] = img
-        self.frame += 1
-        if contrast:
-            self.win.setProperty("minTint", min_tint(img, self.gui.bridge.dark, self.cfg["glass_style"]))
-        self.win.setProperty("frame", self.frame)
+        try:                                  # a capture can arrive just after its window was closed
+            self.gui.backdrop.images[self.name] = img
+            self.frame += 1
+            if contrast:
+                self.win.setProperty("minTint", min_tint(img, self.gui.bridge.dark, self.cfg["glass_style"]))
+            self.win.setProperty("frame", self.frame)
+        except RuntimeError:
+            self._closed = True
+            self._alive = False
 
     def _ensure_thread(self):
         if not self._alive:
@@ -496,6 +501,7 @@ class PinnedCard(_LiveGlass):
             self.gui.bridge.words_changed()
 
     def close(self):
+        self._closed = True
         self.stop_capture()
         try:
             self.win.close()

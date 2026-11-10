@@ -358,3 +358,36 @@ def test_german_only_words():
     import render as R
     text = R.plain_text(R.build([a], "Abschlussball", opts={"german": False}))
     assert "Tanz- und Festveranstaltung" in text                         # shown even with German definitions off
+
+
+def test_settings_survive_damage():
+    """A power cut in the middle of a write, a deleted file or one bad value must not reset the settings."""
+    import json
+    from config import Config
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "config.json")
+    c = Config(p)
+    c.set("key", "alt")
+    c.set("hold_ms", 160)
+    open(p, "w").write('{"key": "al')                                   # cut off mid-write
+    c = Config(p)
+    assert (c["key"], c["hold_ms"], c.loaded_from) == ("alt", 160, "backup")
+    assert any(n.startswith("config.damaged-") for n in os.listdir(d))    # the damaged file is kept, not lost
+    os.remove(p)                                                         # deleted
+    assert Config(p)["key"] == "alt"
+    json.dump({"key": "banana", "hold_ms": 200, "glass": "yes"}, open(p, "w"))
+    c = Config(p)                                                        # one bad value doesn't reset the rest
+    assert (c["key"], c["hold_ms"], c["glass"]) == ("shift", 200, True)
+
+
+def test_words_backup_and_restore():
+    from words import WordStore
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "words.sqlite")
+    s = WordStore(p)
+    s.add("entdecken", "verb", "", "to discover")
+    assert s.backup() and not s.backup()                                 # once a day
+    s.db.close()
+    open(p, "wb").write(b"not a database at all" * 50)                   # the file gets destroyed
+    s = WordStore(p)
+    assert s.restored and s.has("entdecken", "verb")

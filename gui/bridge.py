@@ -381,6 +381,11 @@ class Bridge(QObject):
         self.refresh()
         self.flash.emit("All settings were reset.")
 
+    @Slot(str)
+    def rememberPage(self, page):
+        if page in ("lookup", "words", "dictionary", "settings") and self.app.cfg["last_page"] != page:
+            self.app.cfg.set("last_page", page)
+
     @Slot()
     def hideWindow(self):
         self.app.gui.hide_window()

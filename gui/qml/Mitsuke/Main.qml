@@ -33,7 +33,11 @@ Window {
         target: Theme
         function onDarkChanged() { App.setDark(Theme.dark) }
     }
-    Component.onCompleted: App.setDark(Theme.dark)
+    Component.onCompleted: {
+        App.setDark(Theme.dark)
+        const last = App.settings.last_page                 // reopen where you left it
+        if (last === "words" || last === "dictionary" || last === "settings") page = last
+    }
 
     function go(key) { page = key }
     Connections {
@@ -159,6 +163,6 @@ Window {
     Shortcut { sequence: "Ctrl+S"; enabled: win.page === "lookup"; onActivated: App.toggleSave() }
     Shortcut { sequence: "Escape"; enabled: !alert.opened; onActivated: App.hideWindow() }
 
-    onPageChanged: if (page === "lookup") lookupPage.focusSearch()
+    onPageChanged: { App.rememberPage(page); if (page === "lookup") lookupPage.focusSearch() }
     onActiveChanged: if (active && page === "lookup") lookupPage.focusSearch()
 }

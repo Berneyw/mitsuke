@@ -13,7 +13,10 @@ GRADES = ("again", "hard", "good", "easy")
 
 class WordStore:
     def __init__(self, path):
-        self.db = sqlite3.connect(path, check_same_thread=False)
+        self.path = path
+        self.backup_path = path.replace(".sqlite", ".backup.sqlite")
+        self.restored = False                     # the file was damaged and the backup was used
+        self.db = self._open(path)
         self.lock = threading.Lock()
         self.db.executescript("""
         CREATE TABLE IF NOT EXISTS words(
@@ -23,6 +26,48 @@ class WordStore:
             lapses INTEGER DEFAULT 0, UNIQUE(word, pos));
         """)
         self.db.commit()
+
+    def _open(self, path):
+        """Opens the database, checking it; a damaged file is set aside and the last backup takes its place."""
+        import os
+        try:
+            db = sqlite3.connect(path, check_same_thread=False)
+            if db.execute("PRAGMA quick_check").fetchone()[0] == "ok":
+                db.execute("PRAGMA synchronous=FULL")          # every saved word is on disk before we continue
+                return db
+            db.close()
+        except sqlite3.DatabaseError:
+            pass
+        try:
+            os.replace(path, path.replace(".sqlite", f".damaged-{int(time.time())}.sqlite"))
+        except OSError:
+            pass
+        if os.path.exists(self.backup_path):
+            import shutil
+            shutil.copy2(self.backup_path, path)
+            self.restored = True
+        return sqlite3.connect(path, check_same_thread=False)
+
+    def backup(self, max_age=DAY):
+        """A consistent copy next to the database (words.backup.sqlite), refreshed at most once a day and
+        never from an empty list over a non-empty backup."""
+        import os
+        try:
+            if os.path.exists(self.backup_path) and time.time() - os.path.getmtime(self.backup_path) < max_age:
+                return False
+            if self.count() == 0 and os.path.exists(self.backup_path):
+                return False
+            tmp = self.backup_path + ".tmp"
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            with self.lock:
+                dst = sqlite3.connect(tmp)
+                self.db.backup(dst)
+                dst.close()
+            os.replace(tmp, self.backup_path)
+            return True
+        except (OSError, sqlite3.Error):
+            return False
 
     # ------------------------------------------------------------------ editing
     def add(self, word, pos="", gender="", gloss="", forms="", context="", source="game"):

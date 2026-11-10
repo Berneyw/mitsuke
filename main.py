@@ -60,15 +60,22 @@ class App:
 
     def __init__(self, start_hidden=False):
         self.data_dir = data_dir()
-        logging.basicConfig(filename=os.path.join(self.data_dir, "mitsuke.log"), level=logging.INFO,
-                            format="%(asctime)s %(levelname)s %(message)s", encoding="utf-8")
+        from logging.handlers import RotatingFileHandler
+        handler = RotatingFileHandler(os.path.join(self.data_dir, "mitsuke.log"), maxBytes=1 << 20, backupCount=1,
+                                      encoding="utf-8")                # the log never grows past ~2 MB
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
         logging.info("Mitsuke %s, Python %s", VERSION, sys.version.split()[0])
         sys.excepthook = lambda *a: logging.error("uncaught", exc_info=a)
         threading.excepthook = lambda a: logging.error("thread", exc_info=(a.exc_type, a.exc_value, a.exc_traceback))
         self.cfg = Config()
+        logging.info("settings: %s%s", self.cfg.loaded_from, f" ({self.cfg.problem})" if self.cfg.problem else "")
         self.engine = Engine(self.cfg, self.data_dir)
         from words import WordStore
         self.words = WordStore(os.path.join(self.data_dir, "words.sqlite"))
+        if self.words.restored:
+            logging.warning("words.sqlite was damaged; restored from the backup")
+        self._tidy_data_dir()
         self.pinned = None
         self.update_state = ("idle", "")
         self._last_card = None
@@ -150,6 +157,19 @@ class App:
             self.last_ms = int(1000 * (time.perf_counter() - t0))
             self.ui.call(callback, entries, word, src)
         threading.Thread(target=run, daemon=True).start()
+
+    def _tidy_data_dir(self):
+        """Leftovers of older versions and interrupted writes."""
+        import glob
+        stale = [os.path.join(self.data_dir, n) for n in ("dict.sqlite.old", "config.json.tmp", "simsdict.log")]
+        stale += [p for p in glob.glob(os.path.join(self.data_dir, "*.tmp"))
+                  if time.time() - os.path.getmtime(p) > 3600]
+        for p in stale:
+            try:
+                if os.path.isfile(p):
+                    os.remove(p)
+            except OSError:
+                pass
 
     def quit(self):
         self.stop_flag.set()
@@ -506,6 +526,12 @@ class App:
             if not self.engine.has_offline and not self.cfg["dict_offered"]:
                 self.start_dictionary_build(ask=True)
             self.check_updates()
+            if self.words.backup():
+                logging.info("saved words backed up")
+            if self.cfg.loaded_from == "backup":
+                self.tray.notify("Your settings file was damaged and has been restored from its backup copy.")
+            elif self.words.restored:
+                self.tray.notify("Your saved words file was damaged and has been restored from its backup copy.")
         threading.Thread(target=boot, daemon=True).start()
         try:
             self.gui.exec()

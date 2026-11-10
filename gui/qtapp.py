@@ -22,7 +22,7 @@ QML_DIR = os.path.join(HERE, "qml")
 
 def _qt_log(mode, ctx, msg):
     """Qt's own messages (QML errors, graphics backend problems) go to mitsuke.log."""
-    if "propagateSizeHints" in msg:
+    if "propagateSizeHints" in msg or "Retrying to obtain clipboard" in msg or "QThreadStorage" in msg:
         return
     logging.warning("qt: %s", msg)
 
@@ -108,8 +108,11 @@ class Gui(QObject):
         self.highlight = Highlighter(self)
         self.tray_menu = TrayMenu(self)
         self.pinned = None
-        self._hidden_notified = False
         self._alerts = []
+        self._restore_geometry()
+        # Windows is shutting down or the user is signing out: write everything now
+        self.qapp.commitDataRequest.connect(lambda *_: self.flush())
+        self.qapp.aboutToQuit.connect(self.flush)
         if not start_hidden:
             self.show_window()
 
@@ -226,10 +229,47 @@ class Gui(QObject):
             pass
 
     def hide_window(self):
+        self._remember_geometry()
         self.main.hide()
-        if not self._hidden_notified:
-            self._hidden_notified = True
+        if not self.app.cfg["tray_hint_shown"]:            # once, not after every start
+            self.app.cfg.set("tray_hint_shown", True)
             self.app.tray.notify("Mitsuke keeps running in the tray. Double-click the icon to open it.")
+
+    # ------------------------------------------------------------------ persistence
+    def _restore_geometry(self):
+        g = self.app.cfg["win_geometry"]
+        if not (isinstance(g, list) and len(g) == 4 and all(isinstance(v, (int, float)) for v in g)):
+            return
+        x, y, w, h = (int(v) for v in g)
+        w, h = max(w, int(self.main.minimumWidth())), max(h, int(self.main.minimumHeight()))
+        for s in QGuiApplication.screens():                # only if it's still on a connected screen
+            a = s.availableGeometry()
+            if a.x() - 40 <= x <= a.right() - 200 and a.y() - 10 <= y <= a.bottom() - 120:
+                self.main.setWidth(min(w, a.width()))
+                self.main.setHeight(min(h, a.height()))
+                self.main.setX(x)
+                self.main.setY(y)
+                return
+
+    def _remember_geometry(self):
+        w = self.main
+        try:
+            if not w.isVisible() or w.visibility() != w.Visibility.Windowed:
+                return
+            g = [int(w.x()), int(w.y()), int(w.width()), int(w.height())]
+            if g != self.app.cfg["win_geometry"]:
+                self.app.cfg.set("win_geometry", g)
+        except RuntimeError:
+            pass
+
+    def flush(self):
+        """Everything that lives in memory goes to disk: slider values still settling, the window's place."""
+        try:
+            self.bridge._commit_live()
+            self._remember_geometry()
+            self.app.cfg.save()
+        except Exception:  # noqa
+            logging.exception("flush")
 
     def open_lookup(self, q):
         self.show_window()
@@ -263,6 +303,7 @@ class Gui(QObject):
         return self.qapp.exec()
 
     def quit(self):
+        self.flush()
         self.player.stop()
         self.card.stop_capture()
         if self.pinned:

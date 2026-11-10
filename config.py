@@ -48,10 +48,18 @@ DEFAULTS = {
     "pron_ipa": True,              # show the IPA transcription next to the word
     "pron_autoplay": False,        # speak the word when the in-game card appears
     "pron_volume": 80,             # 0..100
+    # window state
+    "win_geometry": [],            # [x, y, width, height] of the main window
+    "last_page": "lookup",
+    "tray_hint_shown": False,      # the "keeps running in the tray" tip was shown once
 }
 
 
 def data_dir() -> str:
+    override = os.environ.get("MITSUKE_DATA_DIR")        # tests and portable setups: never the real profile
+    if override:
+        os.makedirs(override, exist_ok=True)
+        return override
     base = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
     p = os.path.join(base, APP)
     old = os.path.join(base, OLD_APP)
@@ -72,16 +80,70 @@ def data_dir() -> str:
     return p
 
 
+CHOICES = {"key": ("shift", "ctrl", "alt"), "appearance": ("system", "light", "dark"),
+           "window_material": ("acrylic", "mica", "solid"), "card_position": ("below", "above"),
+           "glass_style": ("glass", "clear", "tinted"), "glass_thickness": ("thin", "regular", "thick"),
+           "pron_source": ("recordings", "voice"), "scale": (1, 2, 3)}
+
+
 class Config:
+    """Settings in config.json. Built not to lose them:
+    - every save is written to a temporary file, flushed to disk (fsync) and swapped in atomically;
+    - a second copy, config.json.bak, is written the same way and used if the main file is missing or damaged
+      (power cut or forced shutdown in the middle of a write);
+    - a damaged file is never silently replaced by defaults: it is kept as config.damaged-*.json;
+    - each value is checked on load, so one bad value can't reset the others."""
+
     def __init__(self, path=None):
         self.path = path or os.path.join(data_dir(), "config.json")
-        self._lock = threading.Lock()
+        self.bak = self.path + ".bak"
+        self._lock = threading.RLock()
         self.data = dict(DEFAULTS)
+        self.loaded_from = "defaults"                    # main | backup | defaults (for the log)
+        self.problem = ""
+        raw = self._read(self.path)
+        if raw is not None:
+            self.loaded_from = "main"
+        else:
+            if os.path.exists(self.path):                # unreadable: keep it for inspection, don't overwrite
+                self.problem = "config.json was damaged"
+                try:
+                    import time
+                    os.replace(self.path, self.path.replace(".json", f".damaged-{int(time.time())}.json"))
+                except OSError:
+                    pass
+            raw = self._read(self.bak)
+            if raw is not None:
+                self.loaded_from = "backup"
+        if raw:
+            for k, v in raw.items():
+                if self._valid(k, v):
+                    self.data[k] = v
+            if self.loaded_from == "backup":
+                with self._lock:
+                    self._save()
+
+    @staticmethod
+    def _read(path):
         try:
-            with open(self.path, encoding="utf-8") as f:
-                self.data.update({k: v for k, v in json.load(f).items() if k in DEFAULTS})
+            with open(path, encoding="utf-8") as f:
+                raw = json.load(f)
+            return raw if isinstance(raw, dict) and raw else None
         except (OSError, ValueError):
-            pass
+            return None
+
+    @staticmethod
+    def _valid(k, v):
+        if k not in DEFAULTS:
+            return False
+        d = DEFAULTS[k]
+        if isinstance(d, bool):
+            ok = isinstance(v, bool)
+        elif isinstance(d, (int, float)):
+            ok = isinstance(v, (int, float)) and not isinstance(v, bool)
+        else:
+            ok = type(v) is type(d)
+        return ok and (k not in CHOICES or v in CHOICES[k])
 
     def __getitem__(self, k):
         return self.data[k]
@@ -91,11 +153,23 @@ class Config:
             self.data[k] = v
             self._save()
 
+    def save(self):
+        with self._lock:
+            self._save()
+
     def _save(self):
-        tmp = self.path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, indent=2, ensure_ascii=False)
-        os.replace(tmp, self.path)
+        text = json.dumps(self.data, indent=2, ensure_ascii=False)
+        for target in (self.path, self.bak):             # two independent copies, each swapped in atomically
+            tmp = f"{target}.{os.getpid()}.tmp"          # per process: two instances can't clobber each other
+            try:
+                with open(tmp, "w", encoding="utf-8") as f:
+                    f.write(text)
+                    f.flush()
+                    os.fsync(f.fileno())                 # on disk before it replaces anything
+                os.replace(tmp, target)
+            except OSError:
+                if target == self.path:
+                    raise
 
     def reset(self):
         """Back to defaults (keeps the 'dictionary already offered' flag so the prompt doesn't reappear)."""
@@ -117,7 +191,7 @@ class Config:
         n = 0
         with self._lock:
             for k, v in raw.items():
-                if k in DEFAULTS and k != "dict_offered" and type(v) is type(DEFAULTS[k]):
+                if k != "dict_offered" and self._valid(k, v):
                     self.data[k] = v
                     n += 1
             self._save()
