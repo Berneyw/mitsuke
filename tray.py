@@ -4,13 +4,17 @@ import pystray
 from PIL import Image, ImageDraw, ImageFont
 
 
-def make_icon(size=64) -> Image.Image:
-    """The app icon (assets/icon.png), falling back to a drawn tile if it's missing."""
+def _asset(name):
     import os
     import sys
-    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "assets", name)
+
+
+def make_icon(size=64) -> Image.Image:
+    """The app icon: the "M" tile at small sizes (the word Mitsuke can't be read there), the full icon above."""
     try:
-        return Image.open(os.path.join(base, "assets", "icon.png")).convert("RGBA").resize((size, size), Image.LANCZOS)
+        name = "icon-small.png" if size <= 48 else "icon.png"
+        return Image.open(_asset(name)).convert("RGBA").resize((size, size), Image.LANCZOS)
     except OSError:
         return _drawn_icon(size)
 
@@ -33,6 +37,24 @@ def _drawn_icon(size=64) -> Image.Image:
 class _GlassIcon(pystray.Icon):
     """pystray icon whose right click opens our own glass menu instead of the native Win32 one."""
     on_menu = None
+
+    def _assert_icon_handle(self):
+        """Loads the tray frame straight from icon.ico at the small-icon size of this DPI, so Windows takes
+        the pixel-aligned 16/20/24/32 px "M" drawn for it instead of shrinking a big image."""
+        if self._icon_handle:
+            return
+        try:
+            import ctypes
+            u = ctypes.windll.user32
+            u.LoadImageW.restype = ctypes.c_void_p
+            s = u.GetSystemMetricsForDpi(49, u.GetDpiForSystem()) if hasattr(u, "GetDpiForSystem") else u.GetSystemMetrics(49)
+            h = u.LoadImageW(None, _asset("icon.ico"), 1, s, s, 0x10)   # IMAGE_ICON, LR_LOADFROMFILE
+            if h:
+                self._icon_handle = h
+                return
+        except Exception:  # noqa
+            pass
+        super()._assert_icon_handle()
 
     def _on_notify(self, wparam, lparam):
         try:

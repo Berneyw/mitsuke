@@ -149,6 +149,17 @@ class App:
                         pass
         except Exception:  # noqa
             logging.exception("autostart")
+        try:                                            # installed copy: keep "Installed apps" showing this version
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Mitsuke_is1", 0,
+                                winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE) as k:
+                loc = winreg.QueryValueEx(k, "InstallLocation")[0]
+                if os.path.normcase(os.path.abspath(loc)) == os.path.normcase(os.path.dirname(sys.executable)):
+                    for name, val in (("DisplayVersion", VERSION), ("DisplayName", "Mitsuke")):
+                        winreg.SetValueEx(k, name, 0, winreg.REG_SZ, val)
+        except OSError:
+            pass
 
     def lookup_async(self, word, callback):
         def run():

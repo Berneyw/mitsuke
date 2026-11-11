@@ -39,8 +39,10 @@ German definitions and examples — without leaving the game.
 
 ## Getting started
 
-1. Download the latest `Mitsuke-*-win64.zip` from [Releases](../../releases), unzip it anywhere and run
-   `Mitsuke.exe`. It lives in the tray.
+1. Download `MitsukeSetup-*.exe` from [Releases](../../releases) and run it — it installs for your user only,
+   no administrator rights needed, and adds Mitsuke to the Start menu. It lives in the tray.
+   Prefer no installer? Take `Mitsuke-*-win64.zip`, unzip it anywhere and run `Mitsuke.exe`.
+   Your settings and words are kept in `%APPDATA%\Mitsuke`, also when you uninstall.
 2. On first start Mitsuke offers to install Windows' German text recognition (a few MB) and to download the
    offline dictionary (about 55 MB; it's rebuilt from Wiktionary every month).
 3. In the game, use **borderless windowed** mode, hold **Shift** (or Ctrl / Alt — see Settings) and point at a
@@ -52,7 +54,10 @@ Requires Windows 10 or 11 (64-bit).
 
 - Python 3.10–3.14 (64-bit).
 - `run_dev.bat` installs the requirements and starts the app.
-- `build_exe.bat` builds `dist\Mitsuke\Mitsuke.exe` (keep the whole folder together).
+- `build_exe.bat` builds `dist\Mitsuke\Mitsuke.exe` (keep the whole folder together); with
+  [Inno Setup 6](https://jrsoftware.org/isinfo.php), `iscc /DAppVersion=2.5 installer\Mitsuke.iss` then makes
+  `dist\MitsukeSetup-2.5.exe`.
+- `python tools/make_icons.py` redraws the small icon sizes (16–48 px) in `assets/icon.ico`.
 - The UI is Qt Quick (PySide6). The glass shader in `gui/qml/Mitsuke/shaders` is precompiled; after editing
   `glass.frag`, rebuild it with `pyside6-qsb` (from PySide6-Addons):
 

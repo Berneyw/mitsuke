@@ -1,6 +1,6 @@
 name: release
-# Push a tag like v2.1 -> builds Mitsuke, publishes a GitHub Release with the zip and its SHA-256.
-# Installed copies of Mitsuke find it through Settings → Updates.
+# Push a tag like v2.1 -> builds Mitsuke, publishes a GitHub Release with the installer, the zip and its SHA-256.
+# Installed copies of Mitsuke find the zip through Settings → Updates.
 on:
   push:
     tags: ["v*"]
@@ -26,7 +26,15 @@ jobs:
           Compress-Archive -Path dist/Mitsuke -DestinationPath $zip
           (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() | Out-File -Encoding ascii -NoNewline "$zip.sha256"
           "ZIP=$zip" >> $env:GITHUB_ENV
+      - name: Installer
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart("v")
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          & $iscc /Qp "/DAppVersion=$v" installer\Mitsuke.iss
+          "SETUP=dist/MitsukeSetup-$v.exe" >> $env:GITHUB_ENV
       - name: Publish release
         shell: bash
         env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release create "$GITHUB_REF_NAME" "$ZIP" "$ZIP.sha256" --title "Mitsuke ${GITHUB_REF_NAME#v}" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" "$SETUP" "$ZIP" "$ZIP.sha256" --title "Mitsuke ${GITHUB_REF_NAME#v}" --generate-notes
