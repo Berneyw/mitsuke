@@ -36,7 +36,7 @@ Window {
     Component.onCompleted: {
         App.setDark(Theme.dark)
         const last = App.settings.last_page                 // reopen where you left it
-        if (last === "words" || last === "dictionary" || last === "settings") page = last
+        if (["words", "history", "dictionary", "settings"].indexOf(last) >= 0) page = last
     }
 
     function go(key) { page = key }
@@ -101,6 +101,11 @@ Window {
                 current: win.page === "words"
                 stage: stage; stageTex: stageTex; trailing: caption.width
             }
+            HistoryPage {
+                id: historyPage
+                current: win.page === "history"
+                stage: stage; stageTex: stageTex; trailing: caption.width
+            }
             DictionaryPage {
                 current: win.page === "dictionary"
                 stage: stage; stageTex: stageTex; trailing: caption.width
@@ -156,8 +161,9 @@ Window {
 
     Shortcut { sequence: "Ctrl+1"; onActivated: win.page = "lookup" }
     Shortcut { sequence: "Ctrl+2"; onActivated: win.page = "words" }
-    Shortcut { sequence: "Ctrl+3"; onActivated: win.page = "dictionary" }
-    Shortcut { sequence: "Ctrl+4"; onActivated: win.page = "settings" }
+    Shortcut { sequence: "Ctrl+3"; onActivated: win.page = "history" }
+    Shortcut { sequence: "Ctrl+4"; onActivated: win.page = "dictionary" }
+    Shortcut { sequence: "Ctrl+5"; onActivated: win.page = "settings" }
     Shortcut { sequence: "Ctrl+,"; onActivated: win.page = "settings" }
     Shortcut { sequences: ["Ctrl+F", "Ctrl+L"]; onActivated: { if (win.page === "settings") settingsPage.focusSearch(); else { win.page = "lookup"; lookupPage.focusSearch() } } }
     Shortcut { sequence: "Ctrl+S"; enabled: win.page === "lookup"; onActivated: App.toggleSave() }

@@ -16,6 +16,7 @@ GlassMenu 1.0 GlassMenu.qml
 GlassSegmented 1.0 GlassSegmented.qml
 GlassSlider 1.0 GlassSlider.qml
 GlassSwitch 1.0 GlassSwitch.qml
+HistoryPage 1.0 HistoryPage.qml
 HighlightWindow 1.0 HighlightWindow.qml
 Icon 1.0 Icon.qml
 Label 1.0 Label.qml

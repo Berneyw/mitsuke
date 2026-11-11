@@ -158,6 +158,35 @@ class App:
             self.ui.call(callback, entries, word, src)
         threading.Thread(target=run, daemon=True).start()
 
+    def _import_history_from_log(self):
+        """Once: the words looked up before History existed are in the log ('Wort' -> 3 (offline) 58 ms)."""
+        import re
+        if self.cfg["history_imported"] or not self.engine.has_offline:
+            return
+        pat = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d),\d+ INFO '(.+)' -> (\d+) \(")
+        found = []
+        for name in ("mitsuke.log.1", "mitsuke.log"):
+            p = os.path.join(self.data_dir, name)
+            try:
+                with open(p, encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        m = pat.match(line)
+                        if m and int(m.group(3)) > 0 and sum(ch.isalpha() for ch in m.group(2)) >= 2:
+                            found.append((time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")), m.group(2)))
+            except OSError:
+                continue
+        n = 0
+        for ts, word in found:
+            try:
+                ents = self.engine.dict.lookup(word)
+                if ents:
+                    self.words.seen(ents[0], "", "game", now=ts)
+                    n += 1
+            except Exception:  # noqa
+                continue
+        self.cfg.set("history_imported", True)
+        logging.info("history: imported %d earlier lookups from the log", n)
+
     def _tidy_data_dir(self):
         """Leftovers of older versions and interrupted writes."""
         import glob
@@ -372,6 +401,10 @@ class App:
             self.current_word = None
             self.ui.call(self.highlight.hide)
             return None
+        if sum(ch.isalpha() for ch in ctx.word) < 2:     # "$", "146", "§": prices, numbers, icons
+            self.current_word = None
+            self.ui.call(self.highlight.hide)
+            return None
         entries, word = self.engine.lookup_context(ctx)
         if self._may_continue(entries, ctx):
             wide = self.ocr.context_at(*pos, wide=True, score=score)    # the sentence goes on beyond the strip
@@ -385,6 +418,7 @@ class App:
                     if e2 and any(e.match for e in e2):
                         ctx, entries, word = more, e2, w2
         word = word or ctx.word
+        self._last_ctx = ctx
         self._ctx_text = sentence_around(ctx.tokens, ctx.idx)
         self._avoid = None
         if ctx.rects:                                     # the text block on screen: the card must not cover it
@@ -440,6 +474,16 @@ class App:
         logging.info("%r -> %d (%s) %d ms", word, len(entries), src, self.last_ms)
         self._last_card = (entries, word, src, self._ctx_text, x, y) if entries else None
         self.ui.call(self.overlay.show, entries, word, x, y, src, getattr(self, "_avoid", None))
+        if entries:
+            try:
+                self.words.seen(entries[0], self._ctx_text, "game")
+                self.ui.call(self.gui.bridge.history_changed)
+            except Exception:  # noqa
+                logging.exception("history")
+        else:                                     # read but not found anywhere: keep it for diagnosis
+            import notfound
+            notfound.record(self.data_dir, word, getattr(self, "_last_ctx", None),
+                            getattr(self.ocr, "grab", None))
 
     def pin_card(self, entries, word, src, context, x, y):
         self.gui.pin(entries, word, src, context, x, y)
@@ -528,6 +572,11 @@ class App:
             self.check_updates()
             if self.words.backup():
                 logging.info("saved words backed up")
+            try:
+                self._import_history_from_log()
+                self.ui.call(self.gui.bridge.history_changed)
+            except Exception:  # noqa
+                logging.exception("history import")
             if self.cfg.loaded_from == "backup":
                 self.tray.notify("Your settings file was damaged and has been restored from its backup copy.")
             elif self.words.restored:

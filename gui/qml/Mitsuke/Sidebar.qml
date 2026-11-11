@@ -11,8 +11,9 @@ Item {
     readonly property var pages: [
         { key: "lookup", label: "Lookup", icon: "search", shortcut: "Ctrl+1" },
         { key: "words", label: "My Words", icon: "star", shortcut: "Ctrl+2" },
-        { key: "dictionary", label: "Dictionary", icon: "book", shortcut: "Ctrl+3" },
-        { key: "settings", label: "Settings", icon: "gear", shortcut: "Ctrl+4" }
+        { key: "history", label: "History", icon: "clock", shortcut: "Ctrl+3" },
+        { key: "dictionary", label: "Dictionary", icon: "book", shortcut: "Ctrl+4" },
+        { key: "settings", label: "Settings", icon: "gear", shortcut: "Ctrl+5" }
     ]
     readonly property int sel: {
         for (let i = 0; i < pages.length; ++i) if (pages[i].key === page) return i

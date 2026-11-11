@@ -52,6 +52,7 @@ DEFAULTS = {
     "win_geometry": [],            # [x, y, width, height] of the main window
     "last_page": "lookup",
     "tray_hint_shown": False,      # the "keeps running in the tray" tip was shown once
+    "history_imported": False,     # lookups from the log of versions before History were imported once
 }
 
 

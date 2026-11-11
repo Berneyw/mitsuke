@@ -391,3 +391,30 @@ def test_words_backup_and_restore():
     open(p, "wb").write(b"not a database at all" * 50)                   # the file gets destroyed
     s = WordStore(p)
     assert s.restored and s.has("entdecken", "verb")
+
+
+def test_history_and_notfound():
+    from words import WordStore
+    import notfound
+    d = build()
+    s = WordStore(os.path.join(tempfile.mkdtemp(), "words.sqlite"))
+    e = d.lookup("Kühlschrank")[0]
+    t = 1_800_000_000.0
+    assert s.seen(e, "Der Kühlschrank ist leer.", now=t) == 1
+    assert s.seen(e, "", now=t + 60) == 1                   # same encounter: hovering it again a minute later
+    assert s.seen(e, "", now=t + 3600) == 2                 # an hour later: it came up again
+    h = s.history()
+    assert h[0]["word"] == "Kühlschrank" and h[0]["count"] == 2 and h[0]["context"] == "Der Kühlschrank ist leer."
+    assert not h[0]["saved"] and s.save_from_history(h[0]["id"]) and s.history()[0]["saved"]
+    assert s.history(since=t + 7200) == []                  # "today" / "week" filters by last_seen
+    # the not-found journal keeps only the newest cases
+    folder = tempfile.mkdtemp()
+    old = notfound.MAX_CASES
+    notfound.MAX_CASES = 3
+    try:
+        for i in range(5):
+            notfound.record(folder, f"Wort{i}")
+        lines = open(os.path.join(folder, "notfound", "notfound.jsonl"), encoding="utf-8").read().splitlines()
+        assert len(lines) == 3 and '"Wort4"' in lines[-1]
+    finally:
+        notfound.MAX_CASES = old

@@ -19,6 +19,14 @@ class WordStore:
         self.db = self._open(path)
         self.lock = threading.Lock()
         self.db.executescript("""
+        CREATE TABLE IF NOT EXISTS history(
+            id INTEGER PRIMARY KEY, word TEXT NOT NULL, pos TEXT DEFAULT '', gender TEXT DEFAULT '',
+            gloss TEXT DEFAULT '', context TEXT DEFAULT '', source TEXT DEFAULT '', count INTEGER DEFAULT 1,
+            first_seen REAL, last_seen REAL, UNIQUE(word, pos));
+        CREATE INDEX IF NOT EXISTS ix_history_last ON history(last_seen);
+        """)
+        self.db.commit()
+        self.db.executescript("""
         CREATE TABLE IF NOT EXISTS words(
             id INTEGER PRIMARY KEY, word TEXT NOT NULL, pos TEXT DEFAULT '', gender TEXT DEFAULT '',
             gloss TEXT DEFAULT '', forms TEXT DEFAULT '', context TEXT DEFAULT '', source TEXT DEFAULT '',
@@ -152,6 +160,62 @@ class WordStore:
                             (iv, ease, reps, lapses, now + iv * DAY, wid))
             self.db.commit()
         return iv
+
+    # ------------------------------------------------------------------ history
+    ENCOUNTER_GAP = 10 * 60          # the same word again within 10 minutes is the same encounter
+
+    def seen(self, e, context="", source="game", now=None):
+        """Records that a word was looked up. Returns its encounter count."""
+        now = now or time.time()
+        gloss = "; ".join(s["gloss"] for s in e.en[:2]) if e.en else (e.de[0] if e.de else "")
+        gender = e.gender.split()[0] if e.gender else ""
+        word, pos = e.word, e.pos or ""
+        with self.lock:
+            row = self.db.execute("SELECT id, count, last_seen FROM history WHERE word=? AND pos=?",
+                                  (word, pos)).fetchone()
+            if row:
+                hid, count, last = row
+                if now - (last or 0) >= self.ENCOUNTER_GAP:
+                    count += 1
+                self.db.execute("UPDATE history SET count=?, last_seen=?, gloss=?, gender=?, "
+                                "context=CASE WHEN ?<>'' THEN ? ELSE context END, source=? WHERE id=?",
+                                (count, now, gloss, gender, context, context, source, hid))
+            else:
+                count = 1
+                self.db.execute("INSERT INTO history(word,pos,gender,gloss,context,source,count,first_seen,last_seen)"
+                                " VALUES(?,?,?,?,?,?,1,?,?)", (word, pos, gender, gloss, context, source, now, now))
+            self.db.commit()
+        return count
+
+    def history(self, since=0.0, query="", order="recent", limit=400):
+        q = f"%{query.strip()}%"
+        sort = "count DESC, last_seen DESC" if order == "frequent" else "last_seen DESC"
+        rows = self._rows(f"SELECT h.*, EXISTS(SELECT 1 FROM words w WHERE w.word=h.word AND w.pos=h.pos) AS saved "
+                          f"FROM history h WHERE last_seen >= ? AND (word LIKE ? OR gloss LIKE ? OR context LIKE ?) "
+                          f"ORDER BY {sort} LIMIT ?", (since, q, q, q, limit))
+        return rows
+
+    def history_count(self, since=0.0):
+        with self.lock:
+            return self.db.execute("SELECT count(*) FROM history WHERE last_seen >= ?", (since,)).fetchone()[0]
+
+    def forget(self, hid):
+        with self.lock:
+            self.db.execute("DELETE FROM history WHERE id=?", (hid,))
+            self.db.commit()
+
+    def clear_history(self):
+        with self.lock:
+            self.db.execute("DELETE FROM history")
+            self.db.commit()
+
+    def save_from_history(self, hid):
+        """Copies a history row into My Words. Returns True if it was added."""
+        rows = self._rows("SELECT * FROM history WHERE id=?", (hid,))
+        if not rows:
+            return False
+        r = rows[0]
+        return self.add(r["word"], r["pos"], r["gender"], r["gloss"], "", r["context"], r["source"] or "game")[1]
 
     # ------------------------------------------------------------------ export
     def export_anki(self, path):

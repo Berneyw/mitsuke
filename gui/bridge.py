@@ -28,6 +28,7 @@ class Bridge(QObject):
     stateChanged = Signal()
     resultChanged = Signal()
     wordsChanged = Signal()
+    historyChanged = Signal()
     darkChanged = Signal()
     pageRequested = Signal(str)
     lookupRequested = Signal(str)
@@ -216,6 +217,11 @@ class Bridge(QObject):
             return
         if self._pending_remember == query:
             self._remember(query)
+            try:                                       # a deliberate search (Enter / chip) goes into History
+                self.app.words.seen(entries[0], "", "lookup")
+                self.history_changed()
+            except Exception:  # noqa
+                pass
         n = len(entries)
         ms = f"{self.app.last_ms} ms" if self.app.last_ms >= 1 else "<1 ms"
         src = "Offline dictionary" if source == "offline" else "Wiktionary online"
@@ -325,6 +331,51 @@ class Bridge(QObject):
     def reviewEnded(self):
         self.words_changed()
 
+    # ------------------------------------------------------------------ history
+    def history_changed(self):
+        self.historyChanged.emit()
+
+    @Slot(str, str, str, result="QVariantList")
+    def history(self, period, query, order):
+        since = {"today": time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1)),
+                 "week": time.time() - 7 * 86400}.get(period, 0.0)
+        out = []
+        now = time.time()
+        for r in self.app.words.history(since, query, order):
+            g = R.GENDER.get(r["gender"])
+            age = now - (r["last_seen"] or now)
+            when = ("just now" if age < 90 else f"{int(age // 60)} min ago" if age < 3600
+                    else time.strftime("%H:%M", time.localtime(r["last_seen"])) if age < 86400
+                    else time.strftime("%d %b", time.localtime(r["last_seen"])))
+            out.append({"id": r["id"], "word": r["word"], "pos": R.POS_NAMES.get(r["pos"], r["pos"] or ""),
+                        "article": g[1] if g else "", "gloss": r["gloss"] or "", "context": r["context"] or "",
+                        "count": r["count"], "when": when, "saved": bool(r["saved"]),
+                        "source": r["source"] or ""})
+        return out
+
+    @Slot(str, result=int)
+    def historyCount(self, period):
+        since = {"today": time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1)),
+                 "week": time.time() - 7 * 86400}.get(period, 0.0)
+        return self.app.words.history_count(since)
+
+    @Slot(int)
+    def saveFromHistory(self, hid):
+        if self.app.words.save_from_history(hid):
+            self.flash.emit("Saved to My Words.")
+        self.words_changed()
+        self.history_changed()
+
+    @Slot(int)
+    def forgetHistory(self, hid):
+        self.app.words.forget(hid)
+        self.history_changed()
+
+    @Slot()
+    def clearHistory(self):
+        self.app.words.clear_history()
+        self.history_changed()
+
     # ------------------------------------------------------------------ actions
     @Slot(bool)
     def startDictionary(self, from_wiktionary=False):
@@ -383,7 +434,7 @@ class Bridge(QObject):
 
     @Slot(str)
     def rememberPage(self, page):
-        if page in ("lookup", "words", "dictionary", "settings") and self.app.cfg["last_page"] != page:
+        if page in ("lookup", "words", "history", "dictionary", "settings") and self.app.cfg["last_page"] != page:
             self.app.cfg.set("last_page", page)
 
     @Slot()
