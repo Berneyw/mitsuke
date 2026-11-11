@@ -90,6 +90,35 @@ Page {
                 }
             }
             SettingRow {
+                title: "Sentence key"
+                desc: "Hold this key to translate the whole sentence under the cursor. In a full-screen game the picture pauses, so tooltips that vanish when the mouse moves stay readable."
+                keywords: "sentence translate translation freeze pause tooltip hotkey"
+                PopupButton {
+                    options: [{ label: "Off", value: "off" }, { label: "Shift", value: "shift" },
+                              { label: "Ctrl", value: "ctrl" }, { label: "Alt", value: "alt" }]
+                    value: sp.s.sentence_key
+                    onSelected: (v) => App.set("sentence_key", v)
+                }
+            }
+            SettingRow {
+                title: "Translate sentences into"
+                desc: "Sentences are translated by Google Translate, so this needs the internet. Words still come from the offline dictionary."
+                keywords: "sentence translation language target google"
+                enabled: sp.s.sentence_key !== "off"
+                PopupButton {
+                    minWidth: 130
+                    options: [{ label: "English", value: "en" }, { label: "Русский", value: "ru" },
+                              { label: "Українська", value: "uk" }, { label: "Polski", value: "pl" },
+                              { label: "Türkçe", value: "tr" }, { label: "Español", value: "es" },
+                              { label: "Français", value: "fr" }, { label: "Italiano", value: "it" },
+                              { label: "Português", value: "pt" }, { label: "Nederlands", value: "nl" },
+                              { label: "Čeština", value: "cs" }, { label: "日本語", value: "ja" },
+                              { label: "中文", value: "zh-CN" }, { label: "한국어", value: "ko" }]
+                    value: sp.s.sentence_lang
+                    onSelected: (v) => App.set("sentence_lang", v)
+                }
+            }
+            SettingRow {
                 title: "Delay before scanning"; desc: "Keeps the card from appearing when you press the key briefly."; keywords: "hold delay"
                 SliderSetting { key: "hold_ms"; from: 0; to: 600; stepSize: 10; unit: "ms" }
             }

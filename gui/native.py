@@ -87,7 +87,7 @@ def native_frame(hwnd):
     user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, 0x0027)        # NOMOVE|NOSIZE|NOZORDER|FRAMECHANGED
 
 
-def overlay_window(hwnd, click_through=True):
+def overlay_window(hwnd, click_through=True, capturable=False):
     """In-game card / highlight: never takes focus, optionally ignores the mouse, invisible to screen capture."""
     try:
         st = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
@@ -95,7 +95,7 @@ def overlay_window(hwnd, click_through=True):
         if click_through:
             st |= WS_EX_TRANSPARENT | WS_EX_LAYERED
         user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, st)
-        if not os.environ.get("MITSUKE_CAPTURABLE"):     # test screenshots only
+        if not capturable and not os.environ.get("MITSUKE_CAPTURABLE"):     # test screenshots only
             user32.SetWindowDisplayAffinity(wt.HWND(hwnd), WDA_EXCLUDEFROMCAPTURE)
     except Exception:  # noqa
         logging.info("overlay styles partly unavailable", exc_info=True)
@@ -116,7 +116,43 @@ def is_maximized(hwnd):
     return bool(user32.IsZoomed(wt.HWND(hwnd)))
 
 
-def work_area(x, y):
+def to_top(hwnd):
+    """Topmost and above every other topmost window, without taking focus."""
+    try:
+        user32.SetWindowPos(wt.HWND(hwnd), wt.HWND(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040)
+    except Exception:  # noqa
+        pass
+
+
+def fullscreen_foreground(left, top, right, bottom):
+    """Is the window in front a full-screen (or borderless full-screen) app covering this monitor — a game —
+    and not one of ours or the desktop?"""
+    try:
+        user32.GetForegroundWindow.restype = wt.HWND
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            return False
+        pid = wt.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value == os.getpid():
+            return False
+        cls = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, cls, 64)
+        if cls.value in ("Progman", "WorkerW", "Shell_TrayWnd"):
+            return False
+        r = wt.RECT()
+        user32.GetWindowRect(hwnd, ctypes.byref(r))
+        return r.left <= left and r.top <= top and r.right >= right and r.bottom >= bottom
+    except Exception:  # noqa
+        return False
+
+
+def monitor_rect(x, y):
+    """Whole monitor (with taskbar) that contains (x, y): (left, top, right, bottom), physical pixels."""
+    return work_area(x, y, whole=True)
+
+
+def work_area(x, y, whole=False):
     """Work area (without taskbar) of the monitor that contains (x, y), physical pixels."""
     class MI(ctypes.Structure):
         _fields_ = [("cbSize", wt.DWORD), ("rcMonitor", wt.RECT), ("rcWork", wt.RECT), ("dwFlags", wt.DWORD)]
@@ -127,7 +163,7 @@ def work_area(x, y):
         mi = MI()
         mi.cbSize = ctypes.sizeof(MI)
         user32.GetMonitorInfoW(hmon, ctypes.byref(mi))
-        r = mi.rcWork
+        r = mi.rcMonitor if whole else mi.rcWork
         return r.left, r.top, r.right, r.bottom
     except Exception:  # noqa
         return 0, 0, 1920, 1080

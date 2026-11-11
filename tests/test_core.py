@@ -418,3 +418,35 @@ def test_history_and_notfound():
         assert len(lines) == 3 and '"Wort4"' in lines[-1]
     finally:
         notfound.MAX_CASES = old
+
+
+def test_sentence_key():
+    """Sentence key: the sentence is cut from the block, broken words are rejoined, reads come from the paused
+    picture, the two keys never clash, and Google's answer is parsed."""
+    import main
+    from config import Config
+    from ocrword import Ocr
+    from PIL import Image
+    from translate import parse
+    toks = ["Das", "ist", "gut.", "Klicke", "im", "Live-", "Modus", "auf", "einen", "Kü-", "chentisch!", "Ja."]
+    lo, hi = main.sentence_span(toks, 7)
+    assert (lo, hi) == (3, 10)
+    assert main.join_lines(toks[lo:hi + 1]) == "Klicke im Live-Modus auf einen Küchentisch!"
+    # the paused picture: crops come from it, beyond its edge they are padded
+    ocr = Ocr.__new__(Ocr)
+    img = Image.new("RGBA", (100, 50), (10, 20, 30, 255))
+    ocr.frozen = (1000, 0, img)
+    w, h, data = ocr.grab(990, 10, 20, 5)
+    assert (w, h) == (20, 5) and data[10 * 4:10 * 4 + 3] == bytes((30, 20, 10))
+    ocr.thaw()
+    assert ocr.frozen is None
+    # word key and sentence key swap instead of clashing
+    app = types.SimpleNamespace(cfg=Config(os.path.join(tempfile.mkdtemp(), "c.json")), current_word=None,
+                                apply_autostart=lambda: None, refresh_window=lambda: None, ui=None, gui=None)
+    app.cfg.set("key", "alt")
+    app.cfg.set("sentence_key", "ctrl")
+    main.App.set_setting(app, "sentence_key", "alt")
+    assert (app.cfg["key"], app.cfg["sentence_key"]) == ("ctrl", "alt")
+    main.App.set_setting(app, "key", "alt")
+    assert (app.cfg["key"], app.cfg["sentence_key"]) == ("alt", "ctrl")
+    assert parse([[["Prom ", "Abschlussball ", None], ["is near.", "ist nah.", None]], None, "de"]) == "Prom is near."

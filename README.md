@@ -18,7 +18,12 @@ German definitions and examples — without leaving the game.
 - **Offline dictionary** built from English and German Wiktionary (about 200 000 entries, 1.2 million word forms), with
   online lookup as a fallback. Compounds that aren't in it (*Abschlussball*, *Live-Modus*) are explained from their
   parts, with gender and plural taken from the last part.
+- **Translate whole sentences** with a second key (Ctrl by default): hold it over a sentence and its
+  translation appears, into English or another language of your choice (by Google Translate, online). In a
+  full-screen game the picture pauses while the key is held, so tooltips that vanish as soon as the mouse moves
+  can be read — and looked up word by word — at leisure.
 - **Pin a card** with a double-tap of the key to scroll it, move it and save the word.
+- **History** of every word you looked up, with the sentence it was in and how often it came up.
 - **My Words**: saved words with the sentence they came from, spaced-repetition review and Anki export.
 - **Modern translucent interface** rendered on the GPU, dark and light appearance, and accessibility options
   (reduce transparency, increase contrast, reduce motion).
@@ -81,8 +86,10 @@ Requires Windows 10 or 11 (64-bit).
 
 ## Data and privacy
 
-Settings, the dictionary, saved words and the log stay on your computer in `%APPDATA%\Mitsuke`. Screen captures
-are processed locally and never saved or sent anywhere; the only network requests are online word lookups
-(en.wiktionary.org, when a word isn't in the offline dictionary), dictionary downloads and update checks.
+Settings, the dictionary, saved words, history and the log stay on your computer in `%APPDATA%\Mitsuke`.
+Screen captures are processed locally and never sent anywhere; the strip around a word that couldn't be found is
+kept locally (`notfound`, the last 300) to help improve recognition. Network requests: the sentence you hold the
+sentence key over is sent to Google Translate (translate.googleapis.com); online word lookups go to
+en.wiktionary.org when a word isn't in the offline dictionary; plus dictionary downloads and update checks.
 
 Dictionary data © Wiktionary contributors, licensed under CC BY-SA 4.0, via [kaikki.org](https://kaikki.org).

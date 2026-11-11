@@ -36,8 +36,8 @@ def claim_instance():
         return None
 
 
-def sentence_around(tokens, idx):
-    """The sentence containing tokens[idx] (for My Words): from the previous . ! ? to the next one."""
+def sentence_span(tokens, idx):
+    """Token range (lo, hi) of the sentence containing tokens[idx]: from the previous . ! ? to the next one."""
     ends = (".", "!", "?", "…")
     lo = idx
     while lo > 0 and not tokens[lo - 1].rstrip("\"“”»«'").endswith(ends):
@@ -45,7 +45,32 @@ def sentence_around(tokens, idx):
     hi = idx
     while hi < len(tokens) - 1 and not tokens[hi].rstrip("\"“”»«'").endswith(ends):
         hi += 1
+    return lo, hi
+
+
+def sentence_around(tokens, idx):
+    """The sentence containing tokens[idx] (for My Words)."""
+    lo, hi = sentence_span(tokens, idx)
     return " ".join(tokens[lo:hi + 1])
+
+
+def join_lines(tokens):
+    """Tokens of several lines as running text: a word broken at a line end («Küchen-» + «tisch») is rejoined."""
+    import re
+    out = []
+    for t in tokens:
+        broken = out and re.search(r"[A-Za-zÄÖÜäöüß][-‐‑­¬]$", out[-1])
+        if broken and t[:1].islower():            # a syllable break: the hyphen goes
+            out[-1] = out[-1][:-1] + t
+        elif broken and t[:1].isupper():          # a hyphenated compound (Live-Modus): the hyphen stays
+            out[-1] = out[-1][:-1] + "-" + t
+        else:
+            out.append(t)
+    return " ".join(out)
+
+
+def cfg_key_name(k):
+    return {"shift": "Shift", "ctrl": "Ctrl", "alt": "Alt"}.get(k, k)
 
 
 def exe_command() -> str:
@@ -71,6 +96,8 @@ class App:
         self.cfg = Config()
         logging.info("settings: %s%s", self.cfg.loaded_from, f" ({self.cfg.problem})" if self.cfg.problem else "")
         self.engine = Engine(self.cfg, self.data_dir)
+        from translate import Translator
+        self.translator = Translator(os.path.join(self.data_dir, "translations.sqlite"))
         from words import WordStore
         self.words = WordStore(os.path.join(self.data_dir, "words.sqlite"))
         if self.words.restored:
@@ -116,6 +143,10 @@ class App:
 
     def set_setting(self, key, value):
         """Single entry point for settings changes: saves, then applies side effects."""
+        other = {"key": "sentence_key", "sentence_key": "key"}.get(key)
+        if other and value == self.cfg[other]:          # one key can't do both: they swap
+            old = self.cfg[key]
+            self.cfg.set(other, old if old != "off" else next(k for k in ("ctrl", "shift", "alt") if k != value))
         self.cfg.set(key, value)
         if key in ("window_material", "reduce_transparency"):
             self.ui.call(self.gui.apply_material)
@@ -369,6 +400,9 @@ class App:
                 card_at_release = self._last_card if shown else None
                 pin_hold = False
             was_down = down
+            if self._sentence_step(down):                  # the sentence key is held (screen paused)
+                time.sleep(0.015)
+                continue
             if pin_hold:                                   # the pinning tap doesn't start a new scan
                 time.sleep(0.02)
                 continue
@@ -401,6 +435,130 @@ class App:
                     self.ui.call(self.overlay.hide)
                 shown = word is not None
             time.sleep(0.015)
+
+    # ---------- sentence key: pause the screen, translate the sentence under the cursor ----------
+    # any of these pressed together with the sentence key means a shortcut (Ctrl+C, Ctrl+click…), not us
+    _CANCEL_KEYS = [0x01, 0x02, 0x04, 0x09, 0x0D, 0x1B, 0x20] + list(range(0x30, 0x3A)) + list(range(0x41, 0x5B))
+
+    def _sentence_step(self, word_down):
+        """One tick of the sentence key. True while it owns the cursor (the word loop then waits)."""
+        from ocrword import cursor_pos
+        st = self.__dict__.setdefault("_sst", {"was": False, "since": 0.0, "on": False, "cancel": False,
+                                               "released": 0.0, "card": None, "pin_hold": False, "pos": None})
+        cfg = self.cfg
+        skey = cfg["sentence_key"]
+        get_key = ctypes.windll.user32.GetAsyncKeyState
+        down = bool(cfg["enabled"] and skey in VK and skey != cfg["key"] and get_key(VK[skey]) & 0x8000)
+        now = time.perf_counter()
+        if down and not st["was"]:
+            st["since"], st["cancel"], st["pos"] = now, False, None
+            if cfg["pin_double_tap"] and st["card"] and now - st["released"] < 0.4:
+                self.ui.call(self.gui.pin_sentence, *st["card"])
+                st["pin_hold"] = True
+            st["card"] = None
+        elif st["was"] and not down:
+            st["released"] = now
+            st["card"] = getattr(self, "_last_sentence", None) if st["on"] else None
+            self._sentence_end()
+            st["pin_hold"] = False
+        st["was"] = down
+        if not down or st["pin_hold"] or st["cancel"]:
+            return False
+        if any(get_key(k) & 0x8000 for k in self._CANCEL_KEYS):
+            st["cancel"] = True
+            self._sentence_end()
+            return False
+        if not st["on"]:
+            if (now - st["since"]) * 1000 < max(cfg["hold_ms"], 180):
+                return True
+            st["on"] = True
+            self._sentence_begin(cursor_pos())
+        if word_down:                                   # the word key over the paused picture: word lookups
+            st["pos"] = None
+            return False
+        pos = cursor_pos()
+        if pos != st["pos"]:
+            st["pos"] = pos
+            time.sleep(0.04)
+            if cursor_pos() != pos:
+                st["pos"] = None
+                return True
+            try:
+                self.sentence_at(pos)
+            except Exception:  # noqa
+                logging.exception("sentence")
+        return True
+
+    def _sentence_begin(self, pos):
+        """Pauses the monitor under the cursor when a full-screen game is in front (tooltips stay readable);
+        on the ordinary desktop nothing is paused, the sentence is simply read."""
+        self._last_sentence, self._sentence_key = None, None
+        self.ui.call(self.overlay.hide)
+        try:
+            from gui import native
+            l, t, r, b = native.monitor_rect(*pos)
+            if native.fullscreen_foreground(l, t, r, b):
+                w, h, data = self.ocr.freeze(l, t, r - l, b - t)
+                logging.info("screen paused (%dx%d)", w, h)
+                self.ui.call(self.gui.freeze.show, (l, t), w, h, data, cfg_key_name(self.cfg["sentence_key"]))
+        except Exception:  # noqa
+            logging.exception("freeze")
+
+    def _sentence_end(self):
+        st = self._sst
+        if st["on"]:
+            self.ocr.thaw()
+            self.ui.call(self.gui.freeze.hide)
+            self.ui.call(self.overlay.hide)
+            self.ui.call(self.highlight.hide)
+        st["on"] = False
+        st["pos"] = None
+        self._sentence_key = None
+
+    def sentence_at(self, pos):
+        t0 = time.perf_counter()
+        self.ocr.scale = self.cfg["scale"]
+        ctx = self.ocr.sentence_at(*pos, score=self.engine.reading_score)
+        if ctx is None or sum(ch.isalpha() for ch in ctx.word) < 2:
+            if self._sentence_key is not None:
+                self.ui.call(self.overlay.hide)
+                self.ui.call(self.highlight.hide)
+            self._sentence_key = None
+            return
+        lo, hi = sentence_span(ctx.tokens, ctx.idx)
+        text = join_lines(ctx.tokens[lo:hi + 1])
+        flat = [r for rs in (ctx.rects or [])[lo:hi + 1] for r in rs]
+        avoid = (min(r[1] for r in flat), max(r[1] + r[3] for r in flat)) if flat else None
+        if self.cfg["highlight"] and flat:
+            self.ui.call(self.highlight.show, [], flat)
+        if text == self._sentence_key:
+            return
+        self._sentence_key = text
+        lang = self.cfg["sentence_lang"]
+        x, y = pos
+        word = ctx.word
+        cached = self.translator.cached(" ".join(text.split()), lang)
+        if cached is not None:
+            self._sentence_shown(text, cached, "", word, x, y, avoid, t0)
+            return
+        self.ui.call(self.overlay.show_sentence, text, "", "Translating…", x, y, avoid)
+
+        def run():
+            import translate
+            try:
+                out, note = self.translator.translate(text, lang), ""
+            except translate.TranslateError as e:
+                logging.info("translate: %s", e)
+                out, note = "", "Couldn’t reach Google Translate. Check the internet connection."
+            if self._sentence_key == text and self._sst["on"]:
+                self._sentence_shown(text, out, note, word, x, y, avoid, t0)
+        threading.Thread(target=run, daemon=True).start()
+
+    def _sentence_shown(self, text, out, note, word, x, y, avoid, t0):
+        logging.info("sentence %d chars -> %s %d ms", len(text), "ok" if out else "failed",
+                     int(1000 * (time.perf_counter() - t0)))
+        self._last_sentence = (text, out, word, x, y, avoid) if out else None
+        self.ui.call(self.overlay.show_sentence, text, out, note, x, y, avoid)
 
     def lookup_at(self, pos):
         t0 = time.perf_counter()

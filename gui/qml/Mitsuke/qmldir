@@ -23,6 +23,7 @@ Label 1.0 Label.qml
 LookupPage 1.0 LookupPage.qml
 Main 1.0 Main.qml
 Page 1.0 Page.qml
+FreezeWindow 1.0 FreezeWindow.qml
 PinnedWindow 1.0 PinnedWindow.qml
 PopupButton 1.0 PopupButton.qml
 Scroller 1.0 Scroller.qml

@@ -23,8 +23,8 @@ Column {
     spacing: 0
 
     readonly property var sizes: ({ word: px + 8, word2: px + 3, meta: px - 1.5, match: px - 1, gloss: px,
-                                    example: px - 1.5, german: px, num: px - 1 })
-    readonly property var gaps: ({ meta: 3, match: 3, gloss: 7, example: 3, german: 9 })
+                                    example: px - 1.5, german: px, num: px - 1, translation: px + 2 })
+    readonly property var gaps: ({ meta: 3, match: 3, gloss: 7, example: 3, german: 9, translation: 8 })
 
     Repeater {
         model: card.lines
@@ -141,6 +141,7 @@ Column {
                 wrapMode: Text.Wrap
                 font.pointSize: 0.75 * (card.sizes[d.style] || card.px)
                 font.italic: d.style === "example"
+                font.weight: d.style === "translation" ? Font.Medium : Font.Normal
                 lineHeight: 1.12
                 color: d.style === "meta" || d.style === "example" ? card.cLabel3
                      : d.style === "match" ? card.cMatch

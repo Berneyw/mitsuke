@@ -253,8 +253,27 @@ class Ocr:
             s = self._tls.sct = (getattr(mss, "MSS", None) or mss.mss)()
         return s
 
+    frozen = None            # (left, top, PIL image): a paused screen — reads come from this picture
+
+    def freeze(self, left, top, w, h):
+        """Photographs a whole monitor; until thaw() every read comes from this picture, so text that the game
+        hides as soon as the mouse moves (tooltips) stays readable. Returns (w, h, BGRA) for display."""
+        from PIL import Image
+        shot = self._sct().grab({"left": left, "top": top, "width": w, "height": h})
+        self.frozen = (left, top, Image.frombuffer("RGBA", (shot.width, shot.height), shot.bgra, "raw", "BGRA", 0, 1))
+        return shot.width, shot.height, shot.bgra
+
+    def thaw(self):
+        self.frozen = None
+
     def grab(self, left, top, w, h):
         """Screen pixels (BGRA). Replaceable: the OCR test bench feeds synthetic game frames through here."""
+        fz = self.frozen
+        if fz is not None:
+            fl, ft, img = fz
+            if left < fl + img.width and top < ft + img.height and left + w > fl and top + h > ft:
+                part = img.crop((left - fl, top - ft, left - fl + w, top - ft + h))
+                return part.width, part.height, part.tobytes("raw", "BGRA")
         shot = self._sct().grab({"left": left, "top": top, "width": w, "height": h})
         return shot.width, shot.height, shot.bgra
 
@@ -313,7 +332,7 @@ class Ocr:
         self._last_origin = (left, top, w / s, h / s)
         return boxes, (cx - left) * s, (cy - top) * s, w, h
 
-    def context_at(self, cx, cy, wide=False, accept=None, score=None, good=0.85):
+    def context_at(self, cx, cy, wide=False, accept=None, score=None, good=0.85, size=None):
         """Context of the word under the cursor, or None.
         score(ctx) -> 0..1 rates a reading (is the word a real word? how much of the line is?). Passes run in
         order until one scores >= good; otherwise the best-scoring reading wins. accept(ctx) -> bool is the
@@ -322,7 +341,7 @@ class Ocr:
             score = lambda c: 1.0 if accept(c) else 0.0  # noqa: E731
         best, best_s = None, -1.0
         for mode in (self.PASSES if score else ("raw",)):
-            ctx = self._context_pass(cx, cy, wide, mode)
+            ctx = self._context_pass(cx, cy, wide, mode, size)
             if ctx is None:
                 continue
             ctx.mode = mode
@@ -335,8 +354,8 @@ class Ocr:
                 break
         return best
 
-    def _context_pass(self, cx, cy, wide, mode):
-        hw, hh = self.half_w * (2 if wide else 1), self.half_h * (2 if wide else 1)
+    def _context_pass(self, cx, cy, wide, mode, size=None):
+        hw, hh = size or (self.half_w * (2 if wide else 1), self.half_h * (2 if wide else 1))
         ctx = None
         for _ in range(2):
             boxes, px, py, w, h = self._recognize(cx, cy, hw, hh, mode)
@@ -390,6 +409,10 @@ class Ocr:
         from dataclasses import replace
         return replace(ctx, tokens=list(ctx.tokens) + extra, tight=list(ctx.tight) + [False] * len(extra),
                        rects=list(ctx.rects) + rects)
+
+    def sentence_at(self, cx, cy, score=None):
+        """The whole text block around the cursor — a paragraph, a tooltip — read in one large capture."""
+        return self.context_at(cx, cy, score=score, good=0.7, size=(max(self.half_w, 700), 260))
 
     def word_at(self, cx, cy):
         ctx = self.context_at(cx, cy)

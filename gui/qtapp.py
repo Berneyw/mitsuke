@@ -14,7 +14,7 @@ from PySide6.QtQuick import QQuickWindow, QSGRendererInterface
 
 from . import native
 from .bridge import Bridge
-from .overlay import Backdrop, CardOverlay, Grabber, Highlighter, PinnedCard, TrayMenu
+from .overlay import Backdrop, CardOverlay, FreezeOverlay, Grabber, Highlighter, PinnedCard, TrayMenu
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 QML_DIR = os.path.join(HERE, "qml")
@@ -106,6 +106,7 @@ class Gui(QObject):
         self.main.frameSwapped.connect(self._first_frame)
         self.card = CardOverlay(self)
         self.highlight = Highlighter(self)
+        self.freeze = FreezeOverlay(self)
         self.tray_menu = TrayMenu(self)
         self.pinned = None
         self._alerts = []
@@ -297,6 +298,15 @@ class Gui(QObject):
         if self.pinned:
             self.pinned.close()
         self.pinned = PinnedCard(self, entries, word, src, context, x, y, getattr(self.card, "last_avoid", None))
+
+    def pin_sentence(self, text, translation, word, x, y, avoid=None):
+        from .overlay import sentence_lines
+        self.card.hide()
+        self.highlight.hide()
+        if self.pinned:
+            self.pinned.close()
+        self.pinned = PinnedCard(self, [], word, "", text, x, y, avoid,
+                                 lines=sentence_lines(text, translation, "", self.app.cfg, pinned=True))
 
     # ------------------------------------------------------------------ lifetime
     def exec(self):

@@ -258,6 +258,10 @@ class CardOverlay(_LiveGlass):
     def show_note(self, title, note, x, y, avoid=None):
         self._present([[("title", [("text", title, "word")]), ("para", note, "meta", None)]], x, y, avoid)
 
+    def show_sentence(self, text, translation, note, x, y, avoid=None):
+        """The sentence card: the German sentence, its translation (or a note while it comes / if it fails)."""
+        self._present([sentence_lines(text, translation, note, self.cfg, pinned=False)], x, y, avoid)
+
     def show(self, entries, query, x, y, source="", avoid=None):
         c = self.cfg
         if not entries:
@@ -327,6 +331,58 @@ class CardOverlay(_LiveGlass):
         w.setProperty("shown", True)
         if not self.timer.isActive():
             self.timer.start()
+
+
+def sentence_lines(text, translation, note, cfg, pinned):
+    lines = [("para", text, "german", None)]
+    if translation:
+        lines.append(("para", translation, "translation", None))
+    if note:
+        lines.append(("para", note, "meta", None))
+    if translation:
+        meta = "Google Translate"
+        if not pinned and cfg["pin_double_tap"]:
+            meta += f" · double-tap {KEY_NAMES.get(cfg['sentence_key'], 'Ctrl')} to pin"
+        lines.append(("para", meta, "meta", None))
+    return lines
+
+
+class FreezeOverlay:
+    """The paused screen (FreezeWindow.qml): a still picture of the monitor while the sentence key is held."""
+
+    def __init__(self, gui):
+        self.gui = gui
+        self.win = gui.create_window("FreezeWindow.qml")
+        native.overlay_window(int(self.win.winId()), click_through=False, capturable=True)
+        self.n = 0
+
+    def show(self, origin, w, h, data, key_name):
+        img = QImage(data, w, h, w * 4, QImage.Format.Format_RGB32).copy()
+        self.gui.backdrop.images["freeze"] = img
+        self.n += 1
+        left, top = origin
+        _, _, dpr = to_logical(left, top)
+        win = self.win
+        win.setX(int(left))                     # a screen's logical top-left equals its native one
+        win.setY(int(top))
+        win.setWidth(int(round(w / dpr)))
+        win.setHeight(int(round(h / dpr)))
+        win.setProperty("keyName", key_name)
+        win.setProperty("source", f"image://backdrop/freeze/{self.n}")
+        win.setProperty("shown", False)
+        win.show()
+        native.to_top(int(win.winId()))          # above the game, even one that keeps itself topmost
+        win.setProperty("shown", True)
+        for other in (self.gui.highlight.win, self.gui.card.win):   # marker and card stay above the picture
+            if other.isVisible():
+                native.to_top(int(other.winId()))
+
+    def hide(self):
+        if self.win.isVisible():
+            self.win.setProperty("shown", False)
+            self.win.hide()
+            self.win.setProperty("source", "")
+        self.gui.backdrop.images.pop("freeze", None)
 
 
 class Highlighter:
@@ -433,7 +489,7 @@ class PinnedCard(_LiveGlass):
     """A card that stays after the scan key is released (double-tap to pin)."""
     name = "pin"
 
-    def __init__(self, gui, entries, query, source, context, x, y, avoid=None):
+    def __init__(self, gui, entries, query, source, context, x, y, avoid=None, lines=None):
         app = gui.app
         super().__init__(gui, gui.create_window("PinnedWindow.qml"))
         self.app, self.entries, self.query, self.source, self.context = app, entries, query, source, context
@@ -441,7 +497,7 @@ class PinnedCard(_LiveGlass):
         native.overlay_window(int(w.winId()), click_through=False)
         opts = {"entries": 6, "senses": c["card_senses"], "examples": c["card_examples"],
                 "german": c["german_definitions"], "german_max": 2}
-        self.lines = R.build(entries, query, source, opts)
+        self.lines = lines if lines is not None else R.build(entries, query, source, opts)
         s, r = screen_at(x, y)
         self.dpr, self.origin = r, (s.geometry().x(), s.geometry().y())
         lx, ly, _ = to_logical(x, y)

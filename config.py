@@ -21,6 +21,8 @@ DEFAULTS = {
     "window_material": "acrylic",  # acrylic | mica | solid (sidebar + title bar, dark appearance)
     "recent": [],              # last searches in Lookup
     "pin_double_tap": True,    # double-tap the scan key to pin the card
+    "sentence_key": "ctrl",    # off | shift | ctrl | alt — hold to freeze the screen and translate a sentence
+    "sentence_lang": "en",     # target language of sentence translations (translate.LANGUAGES)
     "highlight": True,         # tint the word being read (and words linked to it)
     "highlight_area": False,   # also outline the strip that is read (debugging aid)
     "update_check": True,      # look for new versions on start (once a day)
@@ -81,7 +83,8 @@ def data_dir() -> str:
     return p
 
 
-CHOICES = {"key": ("shift", "ctrl", "alt"), "appearance": ("system", "light", "dark"),
+CHOICES = {"key": ("shift", "ctrl", "alt"), "sentence_key": ("off", "shift", "ctrl", "alt"),
+           "sentence_lang": ("en", "ru", "uk", "pl", "tr", "es", "fr", "it", "pt", "nl", "cs", "ja", "zh-CN", "ko"), "appearance": ("system", "light", "dark"),
            "window_material": ("acrylic", "mica", "solid"), "card_position": ("below", "above"),
            "glass_style": ("glass", "clear", "tinted"), "glass_thickness": ("thin", "regular", "thick"),
            "pron_source": ("recordings", "voice"), "scale": (1, 2, 3)}
